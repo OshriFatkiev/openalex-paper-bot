@@ -288,3 +288,7 @@ uv run pytest
 - OpenAlex IDs instead of name matching where possible
 - Small, deterministic formatting and filtering logic
 - Clear failures for missing config and API errors
+
+## License
+
+Licensed under the Apache License, Version 2.0. See `LICENSE`.
