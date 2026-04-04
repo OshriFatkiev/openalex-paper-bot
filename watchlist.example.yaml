@@ -1,0 +1,34 @@
+lookback_days: 2
+
+work_types:
+  - article
+  - preprint
+
+topic_filters:
+  match_mode: primary
+  fields:
+    - name: Computer Science
+      openalex_id: null
+
+targets:
+  - type: author
+    name: Yann LeCun
+    openalex_id: null
+    orcid: null
+
+  - type: institution
+    name: Meta
+    openalex_id: null
+    ror: null
+
+global_queries:
+  - query: world model
+    field: title_and_abstract
+    label: "Global: world model"
+
+keywords:
+  include: []
+  exclude: []
+
+telegram:
+  send_empty_report: false

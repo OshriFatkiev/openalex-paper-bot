@@ -1,0 +1,79 @@
+name: Daily Paper Alert
+
+on:
+  schedule:
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Restore state cache
+        uses: actions/cache/restore@v4
+        with:
+          path: data/state.json
+          key: openalex-paper-bot-state-${{ github.run_id }}
+          restore-keys: |
+            openalex-paper-bot-state-
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Sync dependencies
+        run: uv sync --locked
+
+      - name: Restore private watchlist
+        env:
+          WATCHLIST_YAML: ${{ secrets.WATCHLIST_YAML }}
+        run: |
+          test -n "$WATCHLIST_YAML" || {
+            echo "::error title=Missing WATCHLIST_YAML secret::Set the WATCHLIST_YAML repository secret to the full contents of your private watchlist.yaml file."
+            exit 1
+          }
+          printf '%s' "$WATCHLIST_YAML" > watchlist.yaml
+
+      - name: Validate private watchlist
+        run: |
+          uv run python - <<'PY'
+          from pathlib import Path
+          import sys
+
+          from openalex_paper_bot.config import load_watchlist
+
+          try:
+              load_watchlist(Path("watchlist.yaml"))
+          except Exception as exc:
+              print(
+                  "::error title=Invalid WATCHLIST_YAML secret::"
+                  f"{exc}"
+              )
+              raise SystemExit(1)
+
+          print("watchlist.yaml is valid.")
+          PY
+
+      - name: Run bot
+        env:
+          OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: uv run ppb run
+
+      - name: Save state cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: data/state.json
+          key: openalex-paper-bot-state-${{ github.run_id }}
