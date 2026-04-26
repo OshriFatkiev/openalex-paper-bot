@@ -1,12 +1,12 @@
 """Format normalized papers into compact Telegram digest messages.
 
-The formatter groups papers by matched target, enforces Telegram message length
-limits, and emits explicit omission notes when the full digest does not fit.
+The formatter renders papers as a flat chronological list, enforces Telegram
+message length limits, and emits explicit omission notes when the full digest
+does not fit.
 """
 
 from __future__ import annotations
 
-from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from html import escape
 
@@ -20,7 +20,6 @@ LAST_MESSAGE_FOOTER_RESERVE = 160
 def build_digest(
     papers: Sequence[Paper],
     *,
-    target_order: Sequence[str] | None = None,
     summaries: Mapping[str, str] | None = None,
     max_length: int = MAX_MESSAGE_LENGTH,
 ) -> str:
@@ -28,7 +27,6 @@ def build_digest(
 
     Args:
         papers: Papers to include in the digest.
-        target_order: Preferred section ordering for matched targets.
         summaries: Optional summaries keyed by paper work ID.
         max_length: Maximum Telegram message length to target.
 
@@ -39,7 +37,6 @@ def build_digest(
     """
     return build_digest_messages(
         papers,
-        target_order=target_order,
         summaries=summaries,
         max_length=max_length,
         max_messages=1,
@@ -49,16 +46,17 @@ def build_digest(
 def build_digest_messages(
     papers: Sequence[Paper],
     *,
-    target_order: Sequence[str] | None = None,
     summaries: Mapping[str, str] | None = None,
     max_length: int = MAX_MESSAGE_LENGTH,
     max_messages: int = DEFAULT_MAX_MESSAGES,
 ) -> list[str]:
     """Build one or more compact digest messages.
 
+    Papers are rendered as a flat list in the order received. Each paper
+    includes a match line showing why it appeared in the digest.
+
     Args:
         papers: Papers to include in the digest.
-        target_order: Preferred section ordering for matched targets.
         summaries: Optional summaries keyed by paper work ID.
         max_length: Maximum length for each Telegram message.
         max_messages: Maximum number of Telegram messages to produce.
@@ -71,42 +69,24 @@ def build_digest_messages(
     if not papers:
         return ["No new matching papers."]
 
-    order_lookup = {name: index for index, name in enumerate(target_order or [])}
     summary_lookup = summaries or {}
-    grouped: dict[str, list[Paper]] = defaultdict(list)
-
-    for paper in papers:
-        ordered_matches = _ordered_matches(paper, order_lookup)
-        primary_target = ordered_matches[0] if ordered_matches else "Other"
-        grouped[primary_target].append(paper.model_copy(update={"matched_targets": ordered_matches}))
-
-    ordered_sections = sorted(grouped, key=lambda name: (order_lookup.get(name, 10_000), name))
-    entries: list[tuple[str, Paper]] = []
-    for section_name in ordered_sections:
-        entries.extend((section_name, paper) for paper in grouped[section_name])
-
     messages: list[str] = []
     index = 0
-    total_count = len(entries)
+    total_count = len(papers)
 
     while index < total_count and len(messages) < max_messages:
         is_last_message = len(messages) == max_messages - 1
         header = [_message_header(total_count, continued=bool(messages))]
         blocks: list[list[str]] = []
-        current_section: str | None = None
 
         while index < total_count:
-            section_name, paper = entries[index]
-            block: list[str] = []
-            if section_name != current_section:
-                block.extend(["", escape(section_name)])
-            block.extend(["", *_paper_block(paper, summary=summary_lookup.get(paper.work_id))])
+            paper = papers[index]
+            block = ["", *_paper_block(paper, summary=summary_lookup.get(paper.work_id))]
 
             reserve = LAST_MESSAGE_FOOTER_RESERVE if is_last_message else 0
             candidate = _message_text(header, blocks + [block])
             if len(candidate) <= max_length - reserve:
                 blocks.append(block)
-                current_section = section_name
                 index += 1
                 continue
             break
@@ -135,14 +115,6 @@ def build_digest_messages(
     return messages
 
 
-def _ordered_matches(paper: Paper, order_lookup: dict[str, int]) -> list[str]:
-    """Return a paper's matched targets in display order."""
-    return sorted(
-        dict.fromkeys(paper.matched_targets),
-        key=lambda name: (order_lookup.get(name, 10_000), name),
-    )
-
-
 def _paper_block(paper: Paper, *, summary: str | None = None) -> list[str]:
     """Render the lines for a single paper within a digest."""
     lines = [
@@ -156,9 +128,9 @@ def _paper_block(paper: Paper, *, summary: str | None = None) -> list[str]:
             f"📅 {paper.publication_date.isoformat() if paper.publication_date else 'Unknown date'}",
         ]
     )
-    if len(paper.matched_targets) > 1:
+    if paper.matched_targets:
         matches = ", ".join(escape(target) for target in paper.matched_targets)
-        lines.append(f"🏷️ Matches: {matches}")
+        lines.append(f"🏷 {matches}")
     return lines
 
 

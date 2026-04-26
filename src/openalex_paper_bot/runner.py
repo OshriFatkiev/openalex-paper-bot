@@ -123,15 +123,10 @@ def run(project_root: Path | None = None, *, today: date | None = None) -> RunRe
         sent_work_ids=state.sent_work_ids,
         sent_paper_signatures=state.sent_paper_signatures,
     )
-    target_order = [
-        *[target.name for target in resolved_targets],
-        *[query.display_label() for query in config.watchlist.global_queries],
-    ]
-
     message_sent = False
     if new_papers:
         summaries = build_paper_summaries(new_papers, config.watchlist.summaries)
-        digests = build_digest_messages(new_papers, target_order=target_order, summaries=summaries)
+        digests = build_digest_messages(new_papers, summaries=summaries)
         with TelegramClient(
             config.telegram_bot_token or "",
             config.telegram_chat_id or "",

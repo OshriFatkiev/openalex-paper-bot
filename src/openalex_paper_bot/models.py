@@ -188,7 +188,7 @@ class GlobalQuery(BaseModel):
 
     def display_label(self) -> str:
         """Return the label shown in the digest."""
-        return self.label or f"Query: {self.query}"
+        return self.label or self.query
 
 
 class WatchlistConfig(BaseModel):

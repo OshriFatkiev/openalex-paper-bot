@@ -140,8 +140,8 @@ def test_fetch_papers_merges_target_and_global_query_results() -> None:
         "https://openalex.org/W1",
         "https://openalex.org/W2",
     ]
-    assert papers[0].matched_targets == ["Yann LeCun", "Query: world model"]
-    assert papers[1].matched_targets == ["Query: world model"]
+    assert papers[0].matched_targets == ["Yann LeCun", "world model"]
+    assert papers[1].matched_targets == ["world model"]
 
 
 def test_watchlist_global_query_defaults_and_labels() -> None:
@@ -157,7 +157,7 @@ def test_watchlist_global_query_defaults_and_labels() -> None:
     )
 
     assert watchlist.global_queries[0].field == "title_and_abstract"
-    assert watchlist.global_queries[0].display_label() == "Query: graph learning"
+    assert watchlist.global_queries[0].display_label() == "graph learning"
     assert watchlist.global_queries[1].field == "search"
     assert watchlist.global_queries[1].display_label() == "Custom query"
     assert watchlist.work_types == ["article", "preprint"]

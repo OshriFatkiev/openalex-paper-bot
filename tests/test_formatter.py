@@ -6,7 +6,7 @@ from openalex_paper_bot.formatter import build_digest, build_digest_messages
 from openalex_paper_bot.models import Paper
 
 
-def test_build_digest_groups_by_primary_target_order() -> None:
+def test_build_digest_flat_list_with_match_lines() -> None:
     papers = [
         Paper(
             work_id="https://openalex.org/W1",
@@ -14,7 +14,7 @@ def test_build_digest_groups_by_primary_target_order() -> None:
             publication_date=date(2026, 4, 3),
             landing_url="https://example.com/paper-1",
             authors_summary="Alice, Bob",
-            matched_targets=["Meta", "Yann LeCun"],
+            matched_targets=["Yann LeCun", "Meta"],
         ),
         Paper(
             work_id="https://openalex.org/W2",
@@ -26,18 +26,32 @@ def test_build_digest_groups_by_primary_target_order() -> None:
         ),
     ]
 
-    digest = build_digest(
-        papers,
-        target_order=["Yann LeCun", "Shirley Ho", "Meta"],
-    )
+    digest = build_digest(papers)
 
     assert digest.startswith("<b>📚 Paper radar - 2 new</b>")
-    assert "\nYann LeCun\n" in digest
-    assert "\nShirley Ho\n" in digest
-    assert "🏷️ Matches: Yann LeCun, Meta" in digest
     assert '<b><a href="https://example.com/paper-1">A useful paper</a></b>' in digest
     assert "👥 <i>Alice, Bob</i>" in digest
     assert "📅 2026-04-03" in digest
+    assert "🏷 Yann LeCun, Meta" in digest
+    assert "🏷 Shirley Ho" in digest
+    # No section headers
+    assert "\nYann LeCun\n" not in digest
+    assert "\nShirley Ho\n" not in digest
+
+
+def test_build_digest_single_match_always_shows_match_line() -> None:
+    paper = Paper(
+        work_id="https://openalex.org/W1",
+        title="A single-match paper",
+        publication_date=date(2026, 4, 3),
+        landing_url="https://example.com/paper",
+        authors_summary="Alice",
+        matched_targets=["Google DeepMind"],
+    )
+
+    digest = build_digest([paper])
+
+    assert "🏷 Google DeepMind" in digest
 
 
 def test_build_digest_escapes_html_in_clickable_titles() -> None:
@@ -50,15 +64,14 @@ def test_build_digest_escapes_html_in_clickable_titles() -> None:
         matched_targets=["Meta & Labs", "Other <Team>"],
     )
 
-    digest = build_digest([paper], target_order=["Meta & Labs", "Other <Team>"])
+    digest = build_digest([paper])
 
     assert (
         '<b><a href="https://example.com/paper?x=1&amp;y=&quot;2&quot;">'
         "A &lt;dangerous&gt; &quot;paper&quot; &amp; friends"
         "</a></b>"
     ) in digest
-    assert "\nMeta &amp; Labs\n" in digest
-    assert "🏷️ Matches: Meta &amp; Labs, Other &lt;Team&gt;" in digest
+    assert "🏷 Meta &amp; Labs, Other &lt;Team&gt;" in digest
 
 
 def test_build_digest_renders_escaped_summary_after_title() -> None:
@@ -73,7 +86,6 @@ def test_build_digest_renders_escaped_summary_after_title() -> None:
 
     digest = build_digest(
         [paper],
-        target_order=["Meta"],
         summaries={"https://openalex.org/W1": "Uses <agents> & retrieval."},
     )
 
@@ -101,7 +113,6 @@ def test_build_digest_reports_omitted_papers_when_truncated() -> None:
 
     messages = build_digest_messages(
         papers,
-        target_order=["Meta"],
         max_length=320,
         max_messages=1,
     )
@@ -126,7 +137,6 @@ def test_build_digest_marks_continued_messages() -> None:
 
     messages = build_digest_messages(
         papers,
-        target_order=["Meta"],
         max_length=260,
         max_messages=3,
     )
