@@ -61,6 +61,27 @@ def test_build_digest_escapes_html_in_clickable_titles() -> None:
     assert "🏷️ Matches: Meta &amp; Labs, Other &lt;Team&gt;" in digest
 
 
+def test_build_digest_renders_escaped_summary_after_title() -> None:
+    paper = Paper(
+        work_id="https://openalex.org/W1",
+        title="A useful paper",
+        publication_date=date(2026, 4, 3),
+        landing_url="https://example.com/paper",
+        authors_summary="Alice, Bob",
+        matched_targets=["Meta"],
+    )
+
+    digest = build_digest(
+        [paper],
+        target_order=["Meta"],
+        summaries={"https://openalex.org/W1": "Uses <agents> & retrieval."},
+    )
+
+    assert '<b><a href="https://example.com/paper">A useful paper</a></b>' in digest
+    assert "💡 TL;DR: Uses &lt;agents&gt; &amp; retrieval." in digest
+    assert digest.index("💡 TL;DR") < digest.index("👥")
+
+
 def test_build_digest_empty_message() -> None:
     assert build_digest([]) == "No new matching papers."
 

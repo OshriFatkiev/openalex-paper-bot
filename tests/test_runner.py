@@ -171,6 +171,7 @@ def test_collapse_equivalent_papers_prefers_doi_record_and_keeps_all_source_ids(
             title="World Models for Something",
             publication_date=date(2026, 4, 3),
             landing_url="https://arxiv.org/abs/1234.5678",
+            abstract="This record has the only abstract.",
             authors_summary="Alice, Bob",
             lead_author="Alice",
             matched_targets=["Meta"],
@@ -199,6 +200,7 @@ def test_collapse_equivalent_papers_prefers_doi_record_and_keeps_all_source_ids(
         "https://openalex.org/W2",
         "https://openalex.org/W1",
     ]
+    assert collapsed[0].abstract == "This record has the only abstract."
 
 
 def test_drop_previously_sent_uses_signatures_as_well_as_work_ids() -> None:

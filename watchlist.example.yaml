@@ -30,5 +30,9 @@ keywords:
   include: []
   exclude: []
 
+summaries:
+  enabled: false
+  provider: fake
+
 telegram:
   send_empty_report: false

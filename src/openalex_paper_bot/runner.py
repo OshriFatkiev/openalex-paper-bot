@@ -30,6 +30,7 @@ from openalex_paper_bot.models import (
 )
 from openalex_paper_bot.openalex import OpenAlexClient
 from openalex_paper_bot.storage import read_state, updated_state, write_state
+from openalex_paper_bot.summarizer import build_paper_summaries
 from openalex_paper_bot.telegram import TelegramClient
 
 
@@ -129,7 +130,8 @@ def run(project_root: Path | None = None, *, today: date | None = None) -> RunRe
 
     message_sent = False
     if new_papers:
-        digests = build_digest_messages(new_papers, target_order=target_order)
+        summaries = build_paper_summaries(new_papers, config.watchlist.summaries)
+        digests = build_digest_messages(new_papers, target_order=target_order, summaries=summaries)
         with TelegramClient(
             config.telegram_bot_token or "",
             config.telegram_chat_id or "",
@@ -412,6 +414,7 @@ def _merge_equivalent_paper_pair(left: Paper, right: Paper) -> Paper:
                 "matched_targets": matched_targets,
                 "source_work_ids": source_work_ids,
                 "doi": preferred.doi or other.doi,
+                "abstract": preferred.abstract or other.abstract,
                 "lead_author": preferred.lead_author or other.lead_author,
                 "authors_summary": preferred.authors_summary
                 if preferred.authors_summary != "Unknown authors"

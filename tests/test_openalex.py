@@ -50,6 +50,8 @@ def test_author_and_institution_fetches_use_configured_work_types() -> None:
         "primary_topic.field.id:17|31,"
         "from_publication_date:2026-03-31"
     )
+    assert "abstract_inverted_index" in client.requests[0]["params"]["select"]
+    assert "abstract_inverted_index" in client.requests[1]["params"]["select"]
 
 
 def test_query_fetch_uses_configured_work_types_for_search_and_filtered_search() -> None:
@@ -95,3 +97,40 @@ def test_topic_field_filters_support_primary_and_any_topic_matching() -> None:
         ) == ["topics.field.id:17"]
     finally:
         client.close()
+
+
+def test_paper_from_work_reconstructs_abstract_from_inverted_index() -> None:
+    paper = OpenAlexClient._paper_from_work(
+        {
+            "id": "https://openalex.org/W1",
+            "title": "Useful paper",
+            "publication_date": "2026-04-03",
+            "doi": None,
+            "authorships": [{"author": {"display_name": "Alice"}}],
+            "primary_location": {"landing_page_url": "https://example.com/paper"},
+            "abstract_inverted_index": {
+                "This": [0],
+                "paper": [1],
+                "summarizes": [2],
+                "abstracts.": [3],
+            },
+        }
+    )
+
+    assert paper.abstract == "This paper summarizes abstracts."
+
+
+def test_paper_from_work_uses_none_for_missing_abstract() -> None:
+    paper = OpenAlexClient._paper_from_work(
+        {
+            "id": "https://openalex.org/W1",
+            "title": "Useful paper",
+            "publication_date": "2026-04-03",
+            "doi": None,
+            "authorships": [],
+            "primary_location": {"landing_page_url": "https://example.com/paper"},
+            "abstract_inverted_index": None,
+        }
+    )
+
+    assert paper.abstract is None

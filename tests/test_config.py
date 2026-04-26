@@ -25,3 +25,16 @@ def test_load_watchlist_missing_file_points_to_example(tmp_path: Path) -> None:
         load_watchlist(watchlist_path)
 
     assert "watchlist.example.yaml" in str(exc_info.value)
+
+
+def test_load_watchlist_reads_summary_options(tmp_path: Path) -> None:
+    watchlist_path = tmp_path / "watchlist.yaml"
+    watchlist_path.write_text(
+        ("targets:\n  - type: author\n    name: Yann LeCun\nsummaries:\n  enabled: true\n  provider: fake\n"),
+        encoding="utf-8",
+    )
+
+    watchlist = load_watchlist(watchlist_path)
+
+    assert watchlist.summaries.enabled is True
+    assert watchlist.summaries.provider == "fake"

@@ -7,7 +7,7 @@ limits, and emits explicit omission notes when the full digest does not fit.
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from html import escape
 
 from openalex_paper_bot.models import Paper
@@ -21,6 +21,7 @@ def build_digest(
     papers: Sequence[Paper],
     *,
     target_order: Sequence[str] | None = None,
+    summaries: Mapping[str, str] | None = None,
     max_length: int = MAX_MESSAGE_LENGTH,
 ) -> str:
     """Build a single digest message.
@@ -28,6 +29,7 @@ def build_digest(
     Args:
         papers: Papers to include in the digest.
         target_order: Preferred section ordering for matched targets.
+        summaries: Optional summaries keyed by paper work ID.
         max_length: Maximum Telegram message length to target.
 
     Returns:
@@ -38,6 +40,7 @@ def build_digest(
     return build_digest_messages(
         papers,
         target_order=target_order,
+        summaries=summaries,
         max_length=max_length,
         max_messages=1,
     )[0]
@@ -47,6 +50,7 @@ def build_digest_messages(
     papers: Sequence[Paper],
     *,
     target_order: Sequence[str] | None = None,
+    summaries: Mapping[str, str] | None = None,
     max_length: int = MAX_MESSAGE_LENGTH,
     max_messages: int = DEFAULT_MAX_MESSAGES,
 ) -> list[str]:
@@ -55,6 +59,7 @@ def build_digest_messages(
     Args:
         papers: Papers to include in the digest.
         target_order: Preferred section ordering for matched targets.
+        summaries: Optional summaries keyed by paper work ID.
         max_length: Maximum length for each Telegram message.
         max_messages: Maximum number of Telegram messages to produce.
 
@@ -67,6 +72,7 @@ def build_digest_messages(
         return ["No new matching papers."]
 
     order_lookup = {name: index for index, name in enumerate(target_order or [])}
+    summary_lookup = summaries or {}
     grouped: dict[str, list[Paper]] = defaultdict(list)
 
     for paper in papers:
@@ -94,7 +100,7 @@ def build_digest_messages(
             block: list[str] = []
             if section_name != current_section:
                 block.extend(["", escape(section_name)])
-            block.extend(["", *_paper_block(paper)])
+            block.extend(["", *_paper_block(paper, summary=summary_lookup.get(paper.work_id))])
 
             reserve = LAST_MESSAGE_FOOTER_RESERVE if is_last_message else 0
             candidate = _message_text(header, blocks + [block])
@@ -137,13 +143,19 @@ def _ordered_matches(paper: Paper, order_lookup: dict[str, int]) -> list[str]:
     )
 
 
-def _paper_block(paper: Paper) -> list[str]:
+def _paper_block(paper: Paper, *, summary: str | None = None) -> list[str]:
     """Render the lines for a single paper within a digest."""
     lines = [
         f'<b><a href="{escape(paper.landing_url, quote=True)}">{escape(_truncate(paper.title, 180))}</a></b>',
-        f"👥 <i>{escape(_truncate(paper.authors_summary, 160))}</i>",
-        f"📅 {paper.publication_date.isoformat() if paper.publication_date else 'Unknown date'}",
     ]
+    if summary:
+        lines.append(f"💡 TL;DR: {escape(_truncate(summary, 260))}")
+    lines.extend(
+        [
+            f"👥 <i>{escape(_truncate(paper.authors_summary, 160))}</i>",
+            f"📅 {paper.publication_date.isoformat() if paper.publication_date else 'Unknown date'}",
+        ]
+    )
     if len(paper.matched_targets) > 1:
         matches = ", ".join(escape(target) for target in paper.matched_targets)
         lines.append(f"🏷️ Matches: {matches}")

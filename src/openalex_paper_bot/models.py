@@ -18,6 +18,7 @@ EntityType = Literal["author", "institution", "field"]
 GlobalQueryField = Literal["search", "title", "abstract", "title_and_abstract"]
 WorkType = Literal["article", "preprint"]
 TopicMatchMode = Literal["primary", "any_topic"]
+SummaryProvider = Literal["fake"]
 
 
 class WatchTarget(BaseModel):
@@ -95,6 +96,19 @@ class TelegramOptions(BaseModel):
     """
 
     send_empty_report: bool = False
+
+
+class SummaryOptions(BaseModel):
+    """Optional TL;DR summary generation settings.
+
+    Attributes:
+        enabled: Whether to generate per-paper summaries before formatting.
+        provider: Summary provider implementation to use.
+
+    """
+
+    enabled: bool = False
+    provider: SummaryProvider = "fake"
 
 
 class TopicField(BaseModel):
@@ -187,6 +201,7 @@ class WatchlistConfig(BaseModel):
         topic_filters: Broad field-based topic filters.
         global_queries: Optional global keyword discovery queries.
         keywords: Post-retrieval keyword include/exclude filters.
+        summaries: Optional per-paper TL;DR generation settings.
         telegram: Telegram delivery options.
 
     """
@@ -197,6 +212,7 @@ class WatchlistConfig(BaseModel):
     topic_filters: TopicFilters = Field(default_factory=TopicFilters)
     global_queries: list[GlobalQuery] = Field(default_factory=list)
     keywords: KeywordFilters = Field(default_factory=KeywordFilters)
+    summaries: SummaryOptions = Field(default_factory=SummaryOptions)
     telegram: TelegramOptions = Field(default_factory=TelegramOptions)
 
     @field_validator("work_types")
@@ -289,6 +305,7 @@ class Paper(BaseModel):
         publication_date: Publication date when available.
         doi: Normalized DOI when available.
         landing_url: Best URL to include in digests.
+        abstract: Plain-text abstract when OpenAlex provides one.
         authors_summary: Compact author summary for digest output.
         lead_author: First listed author name when available.
         matched_targets: Targets or global queries that matched this paper.
@@ -301,6 +318,7 @@ class Paper(BaseModel):
     publication_date: date | None = None
     doi: str | None = None
     landing_url: str
+    abstract: str | None = None
     authors_summary: str
     lead_author: str | None = None
     matched_targets: list[str] = Field(default_factory=list)

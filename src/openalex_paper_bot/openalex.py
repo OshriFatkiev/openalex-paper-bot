@@ -586,7 +586,9 @@ class OpenAlexClient:
             "filter": ",".join(filters),
             "sort": "publication_date:desc",
             "per_page": 100,
-            "select": ("id,title,publication_date,doi,authorships,primary_location,best_oa_location"),
+            "select": (
+                "id,title,publication_date,doi,authorships,primary_location,best_oa_location,abstract_inverted_index"
+            ),
         }
 
     @staticmethod
@@ -684,10 +686,29 @@ class OpenAlexClient:
             publication_date=publication_date,
             doi=normalize_doi(doi) if doi else None,
             landing_url=OpenAlexClient._best_landing_url(work),
+            abstract=OpenAlexClient._abstract_from_inverted_index(work.get("abstract_inverted_index")),
             authors_summary=authors_summary,
             lead_author=OpenAlexClient._lead_author(authorships),
             source_work_ids=[work_id],
         )
+
+    @staticmethod
+    def _abstract_from_inverted_index(raw_index: object) -> str | None:
+        """Reconstruct plain abstract text from OpenAlex's inverted index."""
+        if not isinstance(raw_index, dict):
+            return None
+
+        tokens_by_position: dict[int, str] = {}
+        for raw_token, raw_positions in raw_index.items():
+            if not isinstance(raw_token, str) or not isinstance(raw_positions, list):
+                continue
+            for raw_position in raw_positions:
+                if isinstance(raw_position, int) and raw_position >= 0:
+                    tokens_by_position[raw_position] = raw_token
+
+        if not tokens_by_position:
+            return None
+        return " ".join(tokens_by_position[position] for position in sorted(tokens_by_position))
 
     @staticmethod
     def _authors_summary(authorships: list[dict[str, Any]]) -> str:

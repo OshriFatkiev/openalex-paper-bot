@@ -173,6 +173,10 @@ keywords:
   include: []
   exclude: []
 
+summaries:
+  enabled: false
+  provider: fake
+
 telegram:
   send_empty_report: false
 ```
@@ -192,6 +196,7 @@ Notes:
 - `global_queries.field` may be `title_and_abstract`, `title`, `abstract`, or `search`.
 - `search` is broader because it uses OpenAlex full search; `title_and_abstract` is the tighter default.
 - The bot collapses obvious duplicate versions when they share a DOI, or when title and lead author are identical.
+- `summaries.enabled: true` adds a per-paper `TL;DR` line when an abstract is available. The current `fake` provider is a deterministic placeholder that uses the first abstract sentence.
 - When too many papers match, the digest is split across up to a few Telegram messages and ends with a clear `... and N more papers not shown` note.
 - Stable IDs are preferred for day-to-day runs.
 - `keywords.include` and `keywords.exclude` are still applied after retrieval to the combined result set.
