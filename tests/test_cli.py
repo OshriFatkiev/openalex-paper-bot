@@ -1,12 +1,67 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
 
 from openalex_paper_bot.cli import main
 from openalex_paper_bot.storage import read_state
 
 
-def test_reset_state_command_resets_state_with_yes_flag(tmp_path: Path, monkeypatch, capsys) -> None:
+def test_default_command_runs_digest_when_no_subcommand(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def fake_run(*, project_root: Path | None = None) -> SimpleNamespace:
+        assert project_root is None
+        return SimpleNamespace(
+            new_paper_count=2,
+            fetched_paper_count=5,
+            message_sent=True,
+            state_path=Path("/tmp/state.json"),
+        )
+
+    monkeypatch.setattr("openalex_paper_bot.cli.run", fake_run)
+
+    exit_code = main([])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "Run complete: 2 new papers, 5 matching papers after filters, message_sent=True" in captured.out
+
+
+def test_default_command_treats_top_level_options_as_run_options(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    expected_project_root = tmp_path / "project"
+    expected_project_root.mkdir()
+
+    def fake_run(*, project_root: Path | None = None) -> SimpleNamespace:
+        assert project_root == expected_project_root
+        return SimpleNamespace(
+            new_paper_count=0,
+            fetched_paper_count=0,
+            message_sent=False,
+            state_path=expected_project_root / "data" / "state.json",
+        )
+
+    monkeypatch.setattr("openalex_paper_bot.cli.run", fake_run)
+
+    exit_code = main(["--project-root", str(expected_project_root)])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "Run complete: 0 new papers, 0 matching papers after filters, message_sent=False" in captured.out
+
+
+def test_reset_state_command_resets_state_with_yes_flag(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     project_root = tmp_path / "project"
     data_dir = project_root / "data"
     data_dir.mkdir(parents=True)
@@ -34,7 +89,11 @@ def test_reset_state_command_resets_state_with_yes_flag(tmp_path: Path, monkeypa
     assert state.last_run_at is None
 
 
-def test_reset_state_command_aborts_without_confirmation(tmp_path: Path, monkeypatch, capsys) -> None:
+def test_reset_state_command_aborts_without_confirmation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     project_root = tmp_path / "project"
     data_dir = project_root / "data"
     data_dir.mkdir(parents=True)

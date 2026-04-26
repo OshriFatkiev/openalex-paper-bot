@@ -17,14 +17,20 @@ from openalex_paper_bot.openalex import field_key, openalex_key
 from openalex_paper_bot.runner import resolve_watchlist, run, send_test_message
 from openalex_paper_bot.storage import reset_state
 
+COMMAND_NAMES = {"run", "resolve", "test-message", "reset-state"}
+HELP_FLAGS = {"-h", "--help"}
+
 
 def build_parser() -> argparse.ArgumentParser:
     """Build the top-level CLI parser.
 
     Returns:
         The configured argument parser for the ``ppb`` command.
+
     """
-    parser = argparse.ArgumentParser(description="Daily OpenAlex paper alerts via Telegram.")
+    parser = argparse.ArgumentParser(
+        description="Daily OpenAlex paper alerts via Telegram. With no subcommand, `ppb` defaults to `run`."
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     run_parser = subparsers.add_parser("run", help="Fetch papers and send a Telegram digest.")
@@ -67,6 +73,25 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def normalize_argv(argv: Sequence[str] | None = None) -> list[str]:
+    """Normalize argv so bare ``ppb`` behaves like ``ppb run``.
+
+    Args:
+        argv: Optional argument vector. When omitted, arguments are read from
+            ``sys.argv``.
+
+    Returns:
+        An argument vector with the default command applied when appropriate.
+
+    """
+    raw_args = list(sys.argv[1:] if argv is None else argv)
+    if not raw_args:
+        return ["run"]
+    if raw_args[0] in COMMAND_NAMES or raw_args[0] in HELP_FLAGS:
+        return raw_args
+    return ["run", *raw_args]
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the CLI.
 
@@ -76,9 +101,10 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     Returns:
         A process exit code.
+
     """
     parser = build_parser()
-    args = parser.parse_args(argv)
+    args = parser.parse_args(normalize_argv(argv))
 
     try:
         if args.command == "run":
