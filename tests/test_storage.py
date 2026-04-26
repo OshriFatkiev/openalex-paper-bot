@@ -1,19 +1,20 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
 
 from openalex_paper_bot.models import State
 from openalex_paper_bot.storage import read_state, reset_state, updated_state, write_state
 
 
-def test_read_state_returns_default_for_missing_file(tmp_path) -> None:
+def test_read_state_returns_default_for_missing_file(tmp_path: Path) -> None:
     state = read_state(tmp_path / "state.json")
     assert state.sent_work_ids == []
     assert state.sent_paper_signatures == []
     assert state.last_run_at is None
 
 
-def test_write_state_roundtrip_and_dedupes_ids(tmp_path) -> None:
+def test_write_state_roundtrip_and_dedupes_ids(tmp_path: Path) -> None:
     executed_at = datetime(2026, 4, 3, 6, 0, tzinfo=UTC)
     initial = State(
         sent_work_ids=["https://openalex.org/W1"],
@@ -42,7 +43,7 @@ def test_write_state_roundtrip_and_dedupes_ids(tmp_path) -> None:
     assert loaded.last_run_at == executed_at
 
 
-def test_reset_state_writes_default_empty_state(tmp_path) -> None:
+def test_reset_state_writes_default_empty_state(tmp_path: Path) -> None:
     path = tmp_path / "state.json"
     path.write_text(
         '{"sent_work_ids":["https://openalex.org/W1"],"sent_paper_signatures":["x"],"last_run_at":"2026-04-04T00:00:00Z"}',

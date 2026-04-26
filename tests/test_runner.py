@@ -3,7 +3,16 @@ from __future__ import annotations
 from datetime import date
 from pathlib import Path
 
-from openalex_paper_bot.models import Paper, ResolvedTarget, ResolvedTopicField, RuntimeConfig, WatchlistConfig
+from openalex_paper_bot.models import (
+    GlobalQueryField,
+    Paper,
+    ResolvedTarget,
+    ResolvedTopicField,
+    RuntimeConfig,
+    TopicMatchMode,
+    WatchlistConfig,
+    WorkType,
+)
 from openalex_paper_bot.runner import (
     collapse_equivalent_papers,
     drop_previously_sent,
@@ -17,7 +26,7 @@ class FakeDiscoveryClient:
         self,
         field_ids: list[str],
         *,
-        match_mode: str,
+        match_mode: TopicMatchMode,
     ) -> list[str]:
         assert field_ids == ["https://openalex.org/fields/17"]
         assert match_mode == "primary"
@@ -28,7 +37,7 @@ class FakeDiscoveryClient:
         author_id: str,
         from_date: date,
         *,
-        work_types: list[str],
+        work_types: list[WorkType],
         topic_filters: list[str] | None = None,
     ) -> list[Paper]:
         assert author_id == "https://openalex.org/A123"
@@ -50,7 +59,7 @@ class FakeDiscoveryClient:
         inst_id: str,
         from_date: date,
         *,
-        work_types: list[str],
+        work_types: list[WorkType],
         topic_filters: list[str] | None = None,
     ) -> list[Paper]:
         raise AssertionError("Institution fetch should not be called in this test.")
@@ -60,8 +69,8 @@ class FakeDiscoveryClient:
         query: str,
         from_date: date,
         *,
-        field: str = "title_and_abstract",
-        work_types: list[str],
+        field: GlobalQueryField = "title_and_abstract",
+        work_types: list[WorkType],
         topic_filters: list[str] | None = None,
     ) -> list[Paper]:
         assert query == "world model"

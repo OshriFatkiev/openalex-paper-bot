@@ -11,7 +11,7 @@ class RecordingOpenAlexClient(OpenAlexClient):
         super().__init__("test-key")
         self.requests: list[dict[str, Any]] = []
 
-    def _request_json(  # type: ignore[override]
+    def _request_json(
         self,
         method: str,
         path: str,

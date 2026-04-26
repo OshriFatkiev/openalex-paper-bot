@@ -10,23 +10,74 @@ from __future__ import annotations
 import re
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from typing import cast
+from typing import Protocol, cast
 
 import yaml
 
 from openalex_paper_bot.config import load_runtime_config
 from openalex_paper_bot.formatter import build_digest_messages
 from openalex_paper_bot.models import (
+    EntityRef,
+    GlobalQueryField,
     Paper,
     ResolvedTarget,
     ResolvedTopicField,
     RunResult,
     RuntimeConfig,
+    TopicMatchMode,
     WatchlistConfig,
+    WorkType,
 )
 from openalex_paper_bot.openalex import OpenAlexClient
 from openalex_paper_bot.storage import read_state, updated_state, write_state
 from openalex_paper_bot.telegram import TelegramClient
+
+
+class _TargetResolutionClient(Protocol):
+    """OpenAlex-like client methods needed for target and field resolution."""
+
+    def get_author(self, author_id: str) -> EntityRef: ...
+    def get_institution(self, inst_id: str) -> EntityRef: ...
+    def resolve_author_by_orcid(self, orcid: str) -> EntityRef: ...
+    def resolve_institution_by_ror(self, ror: str) -> EntityRef: ...
+    def resolve_author(self, name: str) -> EntityRef: ...
+    def resolve_institution(self, name: str) -> EntityRef: ...
+    def get_field(self, field_id: str) -> EntityRef: ...
+    def resolve_field(self, name: str) -> EntityRef: ...
+
+
+class _PaperDiscoveryClient(Protocol):
+    """OpenAlex-like client methods needed for paper discovery."""
+
+    def topic_field_filters(self, field_ids: list[str], *, match_mode: TopicMatchMode) -> list[str]: ...
+
+    def fetch_recent_works_for_author(
+        self,
+        author_id: str,
+        from_date: date,
+        *,
+        work_types: list[WorkType],
+        topic_filters: list[str] | None = None,
+    ) -> list[Paper]: ...
+
+    def fetch_recent_works_for_institution(
+        self,
+        inst_id: str,
+        from_date: date,
+        *,
+        work_types: list[WorkType],
+        topic_filters: list[str] | None = None,
+    ) -> list[Paper]: ...
+
+    def fetch_recent_works_for_query(
+        self,
+        query: str,
+        from_date: date,
+        *,
+        field: GlobalQueryField = "title_and_abstract",
+        work_types: list[WorkType],
+        topic_filters: list[str] | None = None,
+    ) -> list[Paper]: ...
 
 
 def run(project_root: Path | None = None, *, today: date | None = None) -> RunResult:
@@ -38,6 +89,7 @@ def run(project_root: Path | None = None, *, today: date | None = None) -> RunRe
 
     Returns:
         A summary of the completed run.
+
     """
     config = load_runtime_config(
         project_root=project_root,
@@ -113,7 +165,7 @@ def run(project_root: Path | None = None, *, today: date | None = None) -> RunRe
     )
 
 
-def resolve_targets(watchlist: WatchlistConfig, client: OpenAlexClient) -> list[ResolvedTarget]:
+def resolve_targets(watchlist: WatchlistConfig, client: _TargetResolutionClient) -> list[ResolvedTarget]:
     """Resolve all watchlist targets to stable OpenAlex IDs.
 
     Args:
@@ -122,6 +174,7 @@ def resolve_targets(watchlist: WatchlistConfig, client: OpenAlexClient) -> list[
 
     Returns:
         Resolved targets in watchlist order.
+
     """
     resolved: list[ResolvedTarget] = []
     for target in watchlist.targets:
@@ -162,7 +215,7 @@ def resolve_targets(watchlist: WatchlistConfig, client: OpenAlexClient) -> list[
 
 def resolve_topic_fields(
     watchlist: WatchlistConfig,
-    client: OpenAlexClient,
+    client: _TargetResolutionClient,
 ) -> list[ResolvedTopicField]:
     """Resolve all configured broad topic fields to stable OpenAlex field IDs.
 
@@ -172,6 +225,7 @@ def resolve_topic_fields(
 
     Returns:
         Resolved topic fields in watchlist order.
+
     """
     resolved: list[ResolvedTopicField] = []
     for field in watchlist.topic_filters.fields:
@@ -201,7 +255,7 @@ def fetch_papers(
     config: RuntimeConfig,
     resolved_targets: list[ResolvedTarget],
     resolved_topic_fields: list[ResolvedTopicField],
-    client: OpenAlexClient,
+    client: _PaperDiscoveryClient,
     *,
     from_date: date,
 ) -> list[Paper]:
@@ -216,6 +270,7 @@ def fetch_papers(
 
     Returns:
         The merged, deduplicated, and sorted list of discovered papers.
+
     """
     deduped: dict[str, Paper] = {}
     topic_filters = client.topic_field_filters(
@@ -264,6 +319,7 @@ def _merge_papers(deduped: dict[str, Paper], papers: list[Paper], *, label: str)
         deduped: Mapping of canonical work IDs to accumulated papers.
         papers: Papers returned by a discovery source.
         label: Matched target or query label to attach to each paper.
+
     """
     for paper in papers:
         existing = deduped.get(paper.work_id)
@@ -282,6 +338,7 @@ def collapse_equivalent_papers(papers: list[Paper]) -> list[Paper]:
 
     Returns:
         A list with equivalent papers merged into a single representative item.
+
     """
     collapsed: list[Paper] = []
     signature_to_index: dict[str, int] = {}
@@ -332,6 +389,7 @@ def _merge_equivalent_paper_pair(left: Paper, right: Paper) -> Paper:
 
     Returns:
         The preferred paper record with merged targets and source IDs.
+
     """
     preferred, other = sorted(
         [left, right],
@@ -340,12 +398,10 @@ def _merge_equivalent_paper_pair(left: Paper, right: Paper) -> Paper:
     )
     matched_targets = list(dict.fromkeys([*preferred.matched_targets, *other.matched_targets]))
     source_work_ids = list(
-        dict.fromkeys(
-            [
-                *(preferred.source_work_ids or [preferred.work_id]),
-                *(other.source_work_ids or [other.work_id]),
-            ]
-        )
+        dict.fromkeys([
+            *(preferred.source_work_ids or [preferred.work_id]),
+            *(other.source_work_ids or [other.work_id]),
+        ])
     )
     return cast(
         Paper,
@@ -405,6 +461,7 @@ def filter_papers_by_keywords(
 
     Returns:
         The subset of papers that match the keyword filters.
+
     """
     include_terms = [term.casefold() for term in include if term.strip()]
     exclude_terms = [term.casefold() for term in exclude if term.strip()]
@@ -435,6 +492,7 @@ def drop_previously_sent(
 
     Returns:
         Papers that have not already been sent.
+
     """
     already_sent = set(sent_work_ids)
     already_sent_signatures = set(sent_paper_signatures or [])
@@ -463,6 +521,7 @@ def resolve_watchlist(
 
     Returns:
         The runtime configuration plus resolved targets and topic fields.
+
     """
     config = load_runtime_config(
         project_root=project_root,
@@ -502,6 +561,7 @@ def render_watchlist_yaml(raw_watchlist: dict[object, object]) -> str:
 
     Returns:
         A human-readable YAML string ending with a trailing newline.
+
     """
     rendered = yaml.dump(
         raw_watchlist,
@@ -533,6 +593,7 @@ def send_test_message(project_root: Path | None = None, *, text: str | None = No
     Args:
         project_root: Optional explicit project root.
         text: Optional custom message body.
+
     """
     config = load_runtime_config(
         project_root=project_root,

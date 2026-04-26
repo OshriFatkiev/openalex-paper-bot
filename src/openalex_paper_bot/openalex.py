@@ -35,16 +35,14 @@ def normalize_openalex_id(raw_id: str, *, expected_prefix: str | None = None) ->
 
     Raises:
         ValueError: If the identifier is empty or has the wrong prefix.
+
     """
     value = raw_id.strip()
     if not value:
         raise ValueError("OpenAlex ID cannot be empty.")
     if "/authors/" in value or "/institutions/" in value or "/works/" in value:
         value = value.rstrip("/").split("/")[-1]
-    if value.startswith(OPENALEX_ID_PREFIX):
-        key = value[len(OPENALEX_ID_PREFIX) :]
-    else:
-        key = value
+    key = value[len(OPENALEX_ID_PREFIX) :] if value.startswith(OPENALEX_ID_PREFIX) else value
     key = key.upper()
     if expected_prefix and not key.startswith(expected_prefix.upper()):
         raise ValueError(f"Expected an OpenAlex ID starting with {expected_prefix}: {raw_id}")
@@ -60,6 +58,7 @@ def openalex_key(raw_id: str, *, expected_prefix: str | None = None) -> str:
 
     Returns:
         The compact OpenAlex key without the URL prefix.
+
     """
     return normalize_openalex_id(raw_id, expected_prefix=expected_prefix).removeprefix(OPENALEX_ID_PREFIX)
 
@@ -75,6 +74,7 @@ def normalize_orcid(raw_id: str) -> str:
 
     Raises:
         ValueError: If the ORCID is empty or malformed.
+
     """
     value = raw_id.strip()
     if not value:
@@ -99,6 +99,7 @@ def normalize_ror(raw_id: str) -> str:
 
     Raises:
         ValueError: If the ROR is empty or malformed.
+
     """
     value = raw_id.strip()
     if not value:
@@ -122,6 +123,7 @@ def normalize_doi(raw_doi: str) -> str:
 
     Raises:
         ValueError: If the DOI is empty.
+
     """
     value = raw_doi.strip()
     if not value:
@@ -142,16 +144,14 @@ def normalize_field_id(raw_id: str) -> str:
 
     Raises:
         ValueError: If the identifier is empty or malformed.
+
     """
     value = raw_id.strip()
     if not value:
         raise ValueError("Field ID cannot be empty.")
     if "/fields/" in value:
         value = value.rstrip("/").split("/")[-1]
-    if value.startswith(FIELD_ID_PREFIX):
-        suffix = value[len(FIELD_ID_PREFIX) :]
-    else:
-        suffix = value
+    suffix = value[len(FIELD_ID_PREFIX) :] if value.startswith(FIELD_ID_PREFIX) else value
     if not suffix.isdigit():
         raise ValueError(f"Invalid OpenAlex field ID: {raw_id}")
     return f"{FIELD_ID_PREFIX}{suffix}"
@@ -165,6 +165,7 @@ def field_key(raw_id: str) -> str:
 
     Returns:
         The numeric field key without the URL prefix.
+
     """
     return normalize_field_id(raw_id).removeprefix(FIELD_ID_PREFIX)
 
@@ -178,6 +179,7 @@ class OpenAlexClient:
         Args:
             api_key: OpenAlex API key used for all requests.
             timeout: Request timeout in seconds.
+
         """
         self.api_key = api_key
         self._client = httpx.Client(
@@ -206,6 +208,7 @@ class OpenAlexClient:
 
         Returns:
             The best matching author reference.
+
         """
         return self._resolve_entity("authors", name, entity_type="author")
 
@@ -217,6 +220,7 @@ class OpenAlexClient:
 
         Returns:
             The resolved author reference.
+
         """
         return self._get_entity("authors", author_id, expected_prefix="A", entity_type="author")
 
@@ -228,6 +232,7 @@ class OpenAlexClient:
 
         Returns:
             The resolved author reference.
+
         """
         return self._resolve_entity_by_filter(
             "authors",
@@ -244,6 +249,7 @@ class OpenAlexClient:
 
         Returns:
             The best matching institution reference.
+
         """
         return self._resolve_entity("institutions", name, entity_type="institution")
 
@@ -255,6 +261,7 @@ class OpenAlexClient:
 
         Returns:
             The resolved institution reference.
+
         """
         return self._get_entity(
             "institutions",
@@ -271,6 +278,7 @@ class OpenAlexClient:
 
         Returns:
             The resolved institution reference.
+
         """
         return self._resolve_entity_by_filter(
             "institutions",
@@ -287,6 +295,7 @@ class OpenAlexClient:
 
         Returns:
             The resolved field reference.
+
         """
         return self._resolve_field_entity(name)
 
@@ -298,6 +307,7 @@ class OpenAlexClient:
 
         Returns:
             The resolved field reference.
+
         """
         return self._get_field_entity(field_id)
 
@@ -319,6 +329,7 @@ class OpenAlexClient:
 
         Returns:
             A list of normalized papers returned by OpenAlex.
+
         """
         author_key = openalex_key(author_id, expected_prefix="A")
         return self._fetch_recent_works(
@@ -348,6 +359,7 @@ class OpenAlexClient:
 
         Returns:
             A list of normalized papers returned by OpenAlex.
+
         """
         institution_key = openalex_key(inst_id, expected_prefix="I")
         return self._fetch_recent_works(
@@ -379,6 +391,7 @@ class OpenAlexClient:
 
         Returns:
             A list of normalized papers returned by OpenAlex.
+
         """
         filters = [self._work_types_filter(work_types), *(topic_filters or [])]
         if field == "search":
@@ -523,6 +536,7 @@ class OpenAlexClient:
 
         Returns:
             A list of normalized papers.
+
         """
         papers: list[Paper] = []
         cursor: str | None = "*"
@@ -564,6 +578,7 @@ class OpenAlexClient:
 
         Returns:
             A request-parameter mapping for the works endpoint.
+
         """
         filters = [*(extra_filters or []), f"from_publication_date:{from_date.isoformat()}"]
         return {
@@ -583,6 +598,7 @@ class OpenAlexClient:
 
         Returns:
             An OpenAlex ``type:...`` filter expression.
+
         """
         return "type:" + "|".join(work_types)
 
@@ -597,6 +613,7 @@ class OpenAlexClient:
 
         Returns:
             Zero or one OpenAlex field filter expressions.
+
         """
         if not field_ids:
             return []
@@ -623,6 +640,7 @@ class OpenAlexClient:
 
         Raises:
             RuntimeError: If the request fails after all retry attempts.
+
         """
         last_error: Exception | None = None
         for attempt in range(1, 4):
@@ -691,6 +709,7 @@ class OpenAlexClient:
 
         Returns:
             The first author display name, or ``None`` when unavailable.
+
         """
         for authorship in authorships:
             raw_name = authorship.get("author", {}).get("display_name", "")
