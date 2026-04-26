@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Sequence
+from html import escape
 
 from openalex_paper_bot.models import Paper
 
@@ -84,9 +85,7 @@ def build_digest_messages(
 
     while index < total_count and len(messages) < max_messages:
         is_last_message = len(messages) == max_messages - 1
-        header = (
-            [f"New papers ({total_count} total)"] if not messages else [f"New papers (continued, {total_count} total)"]
-        )
+        header = [_message_header(total_count, continued=bool(messages))]
         blocks: list[list[str]] = []
         current_section: str | None = None
 
@@ -94,7 +93,7 @@ def build_digest_messages(
             section_name, paper = entries[index]
             block: list[str] = []
             if section_name != current_section:
-                block.extend(["", section_name])
+                block.extend(["", escape(section_name)])
             block.extend(["", *_paper_block(paper)])
 
             reserve = LAST_MESSAGE_FOOTER_RESERVE if is_last_message else 0
@@ -141,14 +140,21 @@ def _ordered_matches(paper: Paper, order_lookup: dict[str, int]) -> list[str]:
 def _paper_block(paper: Paper) -> list[str]:
     """Render the lines for a single paper within a digest."""
     lines = [
-        f"- {_truncate(paper.title, 180)}",
-        f"  {paper.publication_date.isoformat() if paper.publication_date else 'Unknown date'}",
-        f"  {_truncate(paper.authors_summary, 160)}",
+        f'<b><a href="{escape(paper.landing_url, quote=True)}">{escape(_truncate(paper.title, 180))}</a></b>',
+        f"👥 <i>{escape(_truncate(paper.authors_summary, 160))}</i>",
+        f"📅 {paper.publication_date.isoformat() if paper.publication_date else 'Unknown date'}",
     ]
     if len(paper.matched_targets) > 1:
-        lines.append(f"  Matches: {', '.join(paper.matched_targets)}")
-    lines.append(f"  {paper.landing_url}")
+        matches = ", ".join(escape(target) for target in paper.matched_targets)
+        lines.append(f"🏷️ Matches: {matches}")
     return lines
+
+
+def _message_header(total_count: int, *, continued: bool) -> str:
+    """Render the digest title line."""
+    if continued:
+        return f"<b>📚 Paper radar - {total_count} new (continued)</b>"
+    return f"<b>📚 Paper radar - {total_count} new</b>"
 
 
 def _truncate(text: str, limit: int) -> str:

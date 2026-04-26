@@ -135,7 +135,7 @@ def run(project_root: Path | None = None, *, today: date | None = None) -> RunRe
             config.telegram_chat_id or "",
         ) as telegram_client:
             for digest in digests:
-                telegram_client.send_message(digest)
+                telegram_client.send_message(digest, parse_mode="HTML")
         message_sent = True
         state = updated_state(
             state,
@@ -398,10 +398,12 @@ def _merge_equivalent_paper_pair(left: Paper, right: Paper) -> Paper:
     )
     matched_targets = list(dict.fromkeys([*preferred.matched_targets, *other.matched_targets]))
     source_work_ids = list(
-        dict.fromkeys([
-            *(preferred.source_work_ids or [preferred.work_id]),
-            *(other.source_work_ids or [other.work_id]),
-        ])
+        dict.fromkeys(
+            [
+                *(preferred.source_work_ids or [preferred.work_id]),
+                *(other.source_work_ids or [other.work_id]),
+            ]
+        )
     )
     return cast(
         Paper,
