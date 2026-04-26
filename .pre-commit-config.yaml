@@ -18,12 +18,18 @@ repos:
       - id: debug-statements  # Check for debugger imports and breakpoints
       - id: check-ast  # Validate Python syntax
 
-  # Ruff
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.9
+  # Ruff via the local uv-managed dependency
+  - repo: local
     hooks:
       # Run the linter
-      - id: ruff
-        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-check
+        name: ruff-check
+        entry: uv run ruff check --fix --exit-non-zero-on-fix
+        language: system
+        types: [python]
       # Run the formatter
       - id: ruff-format
+        name: ruff-format
+        entry: uv run ruff format
+        language: system
+        types: [python]

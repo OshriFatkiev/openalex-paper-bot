@@ -44,11 +44,18 @@ indent-width = 4
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B"]
+select = ["E", "F", "I", "UP", "B", "D", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*.py" = ["D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+docstring-code-format = true
 
 [tool.mypy]
 python_version = "3.11"

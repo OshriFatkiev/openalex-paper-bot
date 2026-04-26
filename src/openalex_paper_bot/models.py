@@ -29,6 +29,7 @@ class WatchTarget(BaseModel):
         openalex_id: Stable OpenAlex ID when already known.
         orcid: Optional ORCID for author targets.
         ror: Optional ROR for institution targets.
+
     """
 
     type: TargetType
@@ -77,6 +78,7 @@ class KeywordFilters(BaseModel):
     Attributes:
         include: Keywords that must appear in a paper's searchable text.
         exclude: Keywords that remove a paper from the results.
+
     """
 
     include: list[str] = Field(default_factory=list)
@@ -89,6 +91,7 @@ class TelegramOptions(BaseModel):
     Attributes:
         send_empty_report: Whether to send a Telegram message when no new papers
             match.
+
     """
 
     send_empty_report: bool = False
@@ -100,6 +103,7 @@ class TopicField(BaseModel):
     Attributes:
         name: Optional human-readable field name.
         openalex_id: Optional stable OpenAlex field ID.
+
     """
 
     name: str | None = None
@@ -129,6 +133,7 @@ class TopicFilters(BaseModel):
         match_mode: Whether to match only primary topic fields or any assigned
             topic field.
         fields: Broad OpenAlex fields to keep in the result set.
+
     """
 
     match_mode: TopicMatchMode = "primary"
@@ -142,6 +147,7 @@ class GlobalQuery(BaseModel):
         query: Keyword query sent to OpenAlex.
         field: OpenAlex search field used for the query.
         label: Optional custom label shown in digests.
+
     """
 
     query: str
@@ -182,6 +188,7 @@ class WatchlistConfig(BaseModel):
         global_queries: Optional global keyword discovery queries.
         keywords: Post-retrieval keyword include/exclude filters.
         telegram: Telegram delivery options.
+
     """
 
     lookback_days: int = 2
@@ -218,6 +225,7 @@ class State(BaseModel):
         sent_paper_signatures: Collapsed paper signatures used for stronger
             duplicate suppression across runs.
         last_run_at: Timestamp of the last completed run, if any.
+
     """
 
     sent_work_ids: list[str] = Field(default_factory=list)
@@ -232,6 +240,7 @@ class EntityRef(BaseModel):
         entity_type: The type of entity that was resolved.
         openalex_id: Stable OpenAlex ID for the entity.
         display_name: Human-readable OpenAlex display name.
+
     """
 
     entity_type: EntityType
@@ -247,6 +256,7 @@ class ResolvedTarget(BaseModel):
         name: Name used in digests and output.
         openalex_id: Stable resolved OpenAlex ID.
         resolved_name: Canonical display name returned by OpenAlex.
+
     """
 
     type: TargetType
@@ -262,6 +272,7 @@ class ResolvedTopicField(BaseModel):
         name: Name used in configuration and output.
         openalex_id: Stable resolved OpenAlex field ID.
         resolved_name: Canonical display name returned by OpenAlex.
+
     """
 
     name: str
@@ -282,6 +293,7 @@ class Paper(BaseModel):
         lead_author: First listed author name when available.
         matched_targets: Targets or global queries that matched this paper.
         source_work_ids: Raw OpenAlex work IDs collapsed into this paper.
+
     """
 
     work_id: str
@@ -300,6 +312,7 @@ class Paper(BaseModel):
         Returns:
             A lower-cased string containing the paper title, author summary, and
             matched targets.
+
         """
         return " ".join([self.title, self.authors_summary, " ".join(self.matched_targets)]).casefold()
 
@@ -315,6 +328,7 @@ class RuntimeConfig(BaseModel):
         openalex_api_key: OpenAlex API key from the environment.
         telegram_bot_token: Telegram bot token from the environment.
         telegram_chat_id: Telegram chat ID from the environment.
+
     """
 
     project_root: Path
@@ -335,6 +349,7 @@ class RunResult(BaseModel):
         new_paper_count: Number of unsent papers included in the digest.
         message_sent: Whether at least one Telegram message was sent.
         state_path: Path to the updated persisted state file.
+
     """
 
     resolved_target_count: int

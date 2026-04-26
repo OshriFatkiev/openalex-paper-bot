@@ -23,6 +23,7 @@ class TelegramClient:
             bot_token: Telegram bot token.
             chat_id: Destination chat ID.
             timeout: Request timeout in seconds.
+
         """
         self.bot_token = bot_token
         self.chat_id = chat_id
@@ -50,6 +51,7 @@ class TelegramClient:
         Raises:
             ValueError: If the message text is empty.
             RuntimeError: If the Telegram API request fails after retries.
+
         """
         if not text.strip():
             raise ValueError("Telegram message text cannot be empty.")

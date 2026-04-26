@@ -73,44 +73,7 @@ Create a private local watchlist from the example:
 cp watchlist.example.yaml watchlist.yaml
 ```
 
-Edit `watchlist.yaml`:
-
-```yaml
-lookback_days: 2
-
-work_types:
-  - article
-  - preprint
-
-topic_filters:
-  match_mode: primary
-  fields:
-    - name: Computer Science
-      openalex_id: null
-
-targets:
-  - type: author
-    name: Yann LeCun
-    openalex_id: null
-    orcid: null
-
-  - type: institution
-    name: Meta
-    openalex_id: null
-    ror: null
-
-global_queries:
-  - query: world model
-    field: title_and_abstract
-    label: Global: world model
-
-keywords:
-  include: []
-  exclude: []
-
-telegram:
-  send_empty_report: false
-```
+See [Watchlist format](#watchlist-format) below for the supported `watchlist.yaml` structure and options.
 
 ### 5. Sync the project with uv
 
@@ -147,12 +110,15 @@ Use `-y` / `--yes` for non-interactive reset.
 Run the daily fetch + digest flow:
 
 ```bash
-uv run ppb run
+uv run ppb
 ```
+
+`uv run ppb run` also still works if you prefer being explicit.
 
 Running the bot twice will not resend the same OpenAlex work IDs because they are stored in `data/state.json`.
 
-If you activate `.venv` manually, `ppb ...` works directly too, but `uv run ppb ...` is the intended workflow.
+If you activate `.venv` manually, bare `ppb` defaults to the daily run and `ppb ...` works directly too, but
+`uv run ppb ...` is the intended workflow.
 
 ## Watchlist format
 
@@ -280,6 +246,8 @@ Sync dependencies and run tests:
 uv sync
 uv run pytest
 ```
+
+Pre-commit uses the local `uv`-managed Ruff version, so run `uv sync` before `uv run pre-commit run --all-files`.
 
 ## Design choices
 

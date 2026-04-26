@@ -32,6 +32,7 @@ def build_digest(
     Returns:
         A single formatted digest message. If the input is too large, the
         result includes an omission note.
+
     """
     return build_digest_messages(
         papers,
@@ -59,6 +60,7 @@ def build_digest_messages(
     Returns:
         A list of digest messages. The last message includes an omission note
         when not all papers fit.
+
     """
     if not papers:
         return ["No new matching papers."]

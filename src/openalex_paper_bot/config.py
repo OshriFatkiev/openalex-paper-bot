@@ -24,6 +24,7 @@ def find_project_root(start: Path | None = None) -> Path:
 
     Returns:
         The closest parent directory that looks like the project root.
+
     """
     current = (start or Path.cwd()).resolve()
     candidates = [current, *current.parents]
@@ -44,6 +45,7 @@ def load_dotenv(path: Path) -> None:
 
     Raises:
         ValueError: If the file contains a malformed ``KEY=VALUE`` line.
+
     """
     if not path.exists():
         return
@@ -76,6 +78,7 @@ def load_watchlist(path: Path) -> WatchlistConfig:
     Raises:
         FileNotFoundError: If the watchlist file does not exist.
         ValueError: If the YAML contents do not match the expected schema.
+
     """
     if not path.exists():
         example_path = path.with_name("watchlist.example.yaml")
@@ -110,6 +113,7 @@ def load_runtime_config(
 
     Raises:
         ValueError: If required environment variables are missing.
+
     """
     root = find_project_root(project_root)
     load_dotenv(root / ".env")

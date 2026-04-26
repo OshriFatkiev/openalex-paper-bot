@@ -28,6 +28,7 @@ def read_state(path: Path) -> State:
 
     Raises:
         ValueError: If the file contains invalid JSON or schema-invalid state.
+
     """
     if not path.exists():
         return State()
@@ -49,6 +50,7 @@ def write_state(path: Path, state: State) -> None:
     Args:
         path: Destination path for the JSON state file.
         state: State object to persist.
+
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = path.with_suffix(f"{path.suffix}.tmp")
@@ -67,6 +69,7 @@ def reset_state(path: Path) -> State:
 
     Returns:
         The default empty state that was written to disk.
+
     """
     state = State()
     write_state(path, state)
@@ -91,6 +94,7 @@ def updated_state(
 
     Returns:
         A new state object containing the merged IDs and timestamp.
+
     """
     sent_work_ids = sorted({*state.sent_work_ids, *new_work_ids})
     sent_paper_signatures = sorted({*state.sent_paper_signatures, *new_paper_signatures})
