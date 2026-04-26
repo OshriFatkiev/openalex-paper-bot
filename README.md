@@ -115,7 +115,7 @@ uv run ppb
 
 `uv run ppb run` also still works if you prefer being explicit.
 
-Running the bot twice will not resend the same OpenAlex work IDs because they are stored in `data/state.json`.
+Running the bot twice will not resend the same OpenAlex work IDs because they are stored in the local ignored file `data/state.json`.
 
 If you activate `.venv` manually, bare `ppb` defaults to the daily run and `ppb ...` works directly too, but
 `uv run ppb ...` is the intended workflow.
@@ -198,6 +198,8 @@ Notes:
 
 ## State format
 
+At runtime, the bot creates or updates the local state file at `data/state.json`. This file is intentionally ignored by Git so manual local runs do not affect the state used by GitHub Actions.
+
 `data/state.json`:
 
 ```json
@@ -236,7 +238,7 @@ Privacy note:
 - `watchlist.yaml` is ignored and intended to stay local or be injected via GitHub Actions secrets.
 - If `watchlist.yaml` was already committed to your Git history before this change, removing it from the current branch is not enough to erase it from history.
 
-The workflow uses a GitHub Actions cache to restore and save `data/state.json`, so previously sent work IDs survive across runs without adding a database.
+The workflow uses a GitHub Actions cache to restore and save its own `data/state.json`, so previously sent work IDs survive across runs without adding a database or committing runtime state.
 
 ## Development
 

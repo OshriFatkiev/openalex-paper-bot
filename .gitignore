@@ -6,6 +6,7 @@ __pycache__/
 .mypy_cache/
 .env
 watchlist.yaml
+data/state.json
 build/
 dist/
 *.egg-info/
