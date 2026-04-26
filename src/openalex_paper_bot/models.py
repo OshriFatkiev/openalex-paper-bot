@@ -18,7 +18,7 @@ EntityType = Literal["author", "institution", "field"]
 GlobalQueryField = Literal["search", "title", "abstract", "title_and_abstract"]
 WorkType = Literal["article", "preprint"]
 TopicMatchMode = Literal["primary", "any_topic"]
-SummaryProvider = Literal["fake"]
+SummaryProvider = Literal["fake", "github_models"]
 
 
 class WatchTarget(BaseModel):
@@ -104,11 +104,34 @@ class SummaryOptions(BaseModel):
     Attributes:
         enabled: Whether to generate per-paper summaries before formatting.
         provider: Summary provider implementation to use.
+        model: GitHub Models model ID to use when provider is ``github_models``.
+        max_chars: Maximum summary length to render.
 
     """
 
     enabled: bool = False
     provider: SummaryProvider = "fake"
+    model: str = "openai/gpt-4.1-mini"
+    max_chars: int = 220
+
+    @field_validator("model")
+    @classmethod
+    def validate_model(cls, value: str) -> str:
+        """Normalize model IDs and reject empty values."""
+        model = value.strip()
+        if not model:
+            raise ValueError("summary model cannot be empty.")
+        return model
+
+    @field_validator("max_chars")
+    @classmethod
+    def validate_max_chars(cls, value: int) -> int:
+        """Keep summary limits useful for compact Telegram digests."""
+        if value < 40:
+            raise ValueError("summary max_chars must be at least 40.")
+        if value > 500:
+            raise ValueError("summary max_chars must be at most 500.")
+        return value
 
 
 class TopicField(BaseModel):
@@ -346,6 +369,7 @@ class RuntimeConfig(BaseModel):
         openalex_api_key: OpenAlex API key from the environment.
         telegram_bot_token: Telegram bot token from the environment.
         telegram_chat_id: Telegram chat ID from the environment.
+        github_models_token: Optional token for GitHub Models summaries.
 
     """
 
@@ -356,6 +380,7 @@ class RuntimeConfig(BaseModel):
     openalex_api_key: str | None = None
     telegram_bot_token: str | None = None
     telegram_chat_id: str | None = None
+    github_models_token: str | None = None
 
 
 class RunResult(BaseModel):

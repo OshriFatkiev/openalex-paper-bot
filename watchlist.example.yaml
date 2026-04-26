@@ -33,6 +33,8 @@ keywords:
 summaries:
   enabled: false
   provider: fake
+  model: openai/gpt-4.1-mini
+  max_chars: 220
 
 telegram:
   send_empty_report: false

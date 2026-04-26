@@ -90,8 +90,9 @@ def test_build_digest_renders_escaped_summary_after_title() -> None:
     )
 
     assert '<b><a href="https://example.com/paper">A useful paper</a></b>' in digest
-    assert "💡 TL;DR: Uses &lt;agents&gt; &amp; retrieval." in digest
-    assert digest.index("💡 TL;DR") < digest.index("👥")
+    assert "💡 Uses &lt;agents&gt; &amp; retrieval." in digest
+    assert "💡 TL;DR" not in digest
+    assert digest.index("💡 Uses") < digest.index("👥")
 
 
 def test_build_digest_empty_message() -> None:

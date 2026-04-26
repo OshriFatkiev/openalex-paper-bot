@@ -5,6 +5,10 @@ on:
     - cron: "0 7 * * *"
   workflow_dispatch:
 
+permissions:
+  contents: read
+  models: read
+
 jobs:
   run:
     runs-on: ubuntu-latest
@@ -69,6 +73,7 @@ jobs:
           OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GITHUB_MODELS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: uv run ppb run
 
       - name: Save state cache

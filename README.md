@@ -25,6 +25,7 @@ Identifiers:
 - An OpenAlex API key
 - A Telegram bot token
 - A Telegram chat ID
+- Optional: a GitHub token with Models access for generated TL;DR summaries
 
 ## Setup
 
@@ -65,7 +66,15 @@ Fill in:
 OPENALEX_API_KEY=your_openalex_api_key
 TELEGRAM_BOT_TOKEN=your_telegram_bot_token
 TELEGRAM_CHAT_ID=your_chat_id
+GITHUB_MODELS_TOKEN=your_github_models_token
 ```
+
+`GITHUB_MODELS_TOKEN` is only needed for local runs when `summaries.provider: github_models`.
+Use a GitHub personal access token with Models access: classic PATs use the `models` scope, and fine-grained PATs need `models: read`.
+Do not commit this token.
+
+For GitHub Actions, you do not need to add a separate GitHub Models secret.
+The workflow uses the automatic `GITHUB_TOKEN` and grants it `models: read`.
 
 Create a private local watchlist from the example:
 
@@ -175,7 +184,9 @@ keywords:
 
 summaries:
   enabled: false
-  provider: fake
+  provider: fake # fake or github_models
+  model: openai/gpt-4.1-mini
+  max_chars: 220
 
 telegram:
   send_empty_report: false
@@ -196,7 +207,11 @@ Notes:
 - `global_queries.field` may be `title_and_abstract`, `title`, `abstract`, or `search`.
 - `search` is broader because it uses OpenAlex full search; `title_and_abstract` is the tighter default.
 - The bot collapses obvious duplicate versions when they share a DOI, or when title and lead author are identical.
-- `summaries.enabled: true` adds a per-paper `TL;DR` line when an abstract is available. The current `fake` provider is a deterministic placeholder that uses the first abstract sentence.
+- `summaries.enabled: true` adds a per-paper `TL;DR` line when an abstract is available.
+- `summaries.provider` supports `fake` and `github_models`.
+- `fake` is deterministic and uses the first abstract sentence, which is useful for tests and formatter checks.
+- `github_models` calls GitHub Models using `summaries.model` and limits the rendered summary with `summaries.max_chars`.
+- For local GitHub Models summaries, set `GITHUB_MODELS_TOKEN` in `.env`. In GitHub Actions, the workflow uses the automatic `GITHUB_TOKEN` with `models: read` permission.
 - When too many papers match, the digest is split across up to a few Telegram messages and ends with a clear `... and N more papers not shown` note.
 - Stable IDs are preferred for day-to-day runs.
 - `keywords.include` and `keywords.exclude` are still applied after retrieval to the combined result set.
@@ -227,6 +242,8 @@ Add these repository secrets:
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_CHAT_ID`
 - `WATCHLIST_YAML`
+
+No extra secret is needed for GitHub Models in Actions; the workflow passes the automatic `GITHUB_TOKEN` to the bot and grants `models: read`.
 
 Create the watchlist secret from your local private file:
 

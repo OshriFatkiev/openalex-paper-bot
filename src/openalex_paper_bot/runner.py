@@ -37,20 +37,45 @@ from openalex_paper_bot.telegram import TelegramClient
 class _TargetResolutionClient(Protocol):
     """OpenAlex-like client methods needed for target and field resolution."""
 
-    def get_author(self, author_id: str) -> EntityRef: ...
-    def get_institution(self, inst_id: str) -> EntityRef: ...
-    def resolve_author_by_orcid(self, orcid: str) -> EntityRef: ...
-    def resolve_institution_by_ror(self, ror: str) -> EntityRef: ...
-    def resolve_author(self, name: str) -> EntityRef: ...
-    def resolve_institution(self, name: str) -> EntityRef: ...
-    def get_field(self, field_id: str) -> EntityRef: ...
-    def resolve_field(self, name: str) -> EntityRef: ...
+    def get_author(self, author_id: str) -> EntityRef:
+        """Fetch a resolved author by OpenAlex ID."""
+        ...
+
+    def get_institution(self, inst_id: str) -> EntityRef:
+        """Fetch a resolved institution by OpenAlex ID."""
+        ...
+
+    def resolve_author_by_orcid(self, orcid: str) -> EntityRef:
+        """Resolve an author by ORCID."""
+        ...
+
+    def resolve_institution_by_ror(self, ror: str) -> EntityRef:
+        """Resolve an institution by ROR ID."""
+        ...
+
+    def resolve_author(self, name: str) -> EntityRef:
+        """Resolve an author by display name."""
+        ...
+
+    def resolve_institution(self, name: str) -> EntityRef:
+        """Resolve an institution by display name."""
+        ...
+
+    def get_field(self, field_id: str) -> EntityRef:
+        """Fetch a resolved topic field by OpenAlex field ID."""
+        ...
+
+    def resolve_field(self, name: str) -> EntityRef:
+        """Resolve a topic field by display name."""
+        ...
 
 
 class _PaperDiscoveryClient(Protocol):
     """OpenAlex-like client methods needed for paper discovery."""
 
-    def topic_field_filters(self, field_ids: list[str], *, match_mode: TopicMatchMode) -> list[str]: ...
+    def topic_field_filters(self, field_ids: list[str], *, match_mode: TopicMatchMode) -> list[str]:
+        """Build provider-specific topic field filters."""
+        ...
 
     def fetch_recent_works_for_author(
         self,
@@ -59,7 +84,9 @@ class _PaperDiscoveryClient(Protocol):
         *,
         work_types: list[WorkType],
         topic_filters: list[str] | None = None,
-    ) -> list[Paper]: ...
+    ) -> list[Paper]:
+        """Fetch recent works for an author target."""
+        ...
 
     def fetch_recent_works_for_institution(
         self,
@@ -68,7 +95,9 @@ class _PaperDiscoveryClient(Protocol):
         *,
         work_types: list[WorkType],
         topic_filters: list[str] | None = None,
-    ) -> list[Paper]: ...
+    ) -> list[Paper]:
+        """Fetch recent works for an institution target."""
+        ...
 
     def fetch_recent_works_for_query(
         self,
@@ -78,7 +107,9 @@ class _PaperDiscoveryClient(Protocol):
         field: GlobalQueryField = "title_and_abstract",
         work_types: list[WorkType],
         topic_filters: list[str] | None = None,
-    ) -> list[Paper]: ...
+    ) -> list[Paper]:
+        """Fetch recent works for a global keyword query."""
+        ...
 
 
 def run(project_root: Path | None = None, *, today: date | None = None) -> RunResult:
@@ -125,7 +156,11 @@ def run(project_root: Path | None = None, *, today: date | None = None) -> RunRe
     )
     message_sent = False
     if new_papers:
-        summaries = build_paper_summaries(new_papers, config.watchlist.summaries)
+        summaries = build_paper_summaries(
+            new_papers,
+            config.watchlist.summaries,
+            github_models_token=config.github_models_token,
+        )
         digests = build_digest_messages(new_papers, summaries=summaries)
         with TelegramClient(
             config.telegram_bot_token or "",
@@ -365,7 +400,15 @@ def collapse_equivalent_papers(papers: list[Paper]) -> list[Paper]:
 
 
 def _paper_equivalence_signatures(paper: Paper) -> list[str]:
-    """Return signatures used to collapse duplicate work versions."""
+    """Return signatures used to collapse duplicate work versions.
+
+    Args:
+        paper: Paper to derive equivalence signatures for.
+
+    Returns:
+        DOI and title/lead-author signatures that identify likely duplicates.
+
+    """
     signatures: list[str] = []
     if paper.doi:
         signatures.append(f"doi:{paper.doi}")
@@ -420,7 +463,15 @@ def _merge_equivalent_paper_pair(left: Paper, right: Paper) -> Paper:
 
 
 def _paper_preference_key(paper: Paper) -> tuple[int, int, date, int]:
-    """Return ordering used to choose the representative paper record."""
+    """Return ordering used to choose the representative paper record.
+
+    Args:
+        paper: Paper candidate within an equivalent-paper group.
+
+    Returns:
+        A tuple ordered by metadata completeness and usefulness.
+
+    """
     return (
         1 if paper.doi else 0,
         _landing_url_priority(paper.landing_url),
@@ -430,7 +481,15 @@ def _paper_preference_key(paper: Paper) -> tuple[int, int, date, int]:
 
 
 def _landing_url_priority(url: str) -> int:
-    """Rank landing URLs so publisher or DOI links win over weaker alternatives."""
+    """Rank landing URLs so publisher or DOI links win over weaker alternatives.
+
+    Args:
+        url: Candidate landing URL.
+
+    Returns:
+        A higher score for preferred landing-page sources.
+
+    """
     normalized = url.casefold()
     if "doi.org/" in normalized:
         return 3
@@ -442,7 +501,15 @@ def _landing_url_priority(url: str) -> int:
 
 
 def _normalize_text(value: str) -> str:
-    """Normalize free text for fuzzy signature matching."""
+    """Normalize free text for fuzzy signature matching.
+
+    Args:
+        value: Raw text to normalize.
+
+    Returns:
+        Lower-cased alphanumeric text with collapsed whitespace.
+
+    """
     return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9]+", " ", value.casefold())).strip()
 
 
@@ -583,7 +650,13 @@ class _WatchlistDumper(yaml.SafeDumper):
     """YAML dumper that indents list items under their parent keys."""
 
     def increase_indent(self, flow: bool = False, indentless: bool = False) -> None:
-        """Force nested sequence indentation for readable YAML output."""
+        """Force nested sequence indentation for readable YAML output.
+
+        Args:
+            flow: Whether PyYAML is emitting flow-style YAML.
+            indentless: Whether PyYAML would otherwise use indentless lists.
+
+        """
         return super().increase_indent(flow, indentless=False)
 
 

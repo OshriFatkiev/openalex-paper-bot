@@ -116,12 +116,21 @@ def build_digest_messages(
 
 
 def _paper_block(paper: Paper, *, summary: str | None = None) -> list[str]:
-    """Render the lines for a single paper within a digest."""
+    """Render the lines for a single paper within a digest.
+
+    Args:
+        paper: Paper to render.
+        summary: Optional precomputed summary text for the paper.
+
+    Returns:
+        Message lines for the paper block.
+
+    """
     lines = [
         f'<b><a href="{escape(paper.landing_url, quote=True)}">{escape(_truncate(paper.title, 180))}</a></b>',
     ]
     if summary:
-        lines.append(f"💡 TL;DR: {escape(_truncate(summary, 260))}")
+        lines.append(f"💡 {escape(_truncate(summary, 260))}")
     lines.extend(
         [
             f"👥 <i>{escape(_truncate(paper.authors_summary, 160))}</i>",
@@ -135,14 +144,32 @@ def _paper_block(paper: Paper, *, summary: str | None = None) -> list[str]:
 
 
 def _message_header(total_count: int, *, continued: bool) -> str:
-    """Render the digest title line."""
+    """Render the digest title line.
+
+    Args:
+        total_count: Total number of new papers in the digest.
+        continued: Whether the message is a continuation chunk.
+
+    Returns:
+        HTML-formatted digest header text.
+
+    """
     if continued:
         return f"<b>📚 Paper radar - {total_count} new (continued)</b>"
     return f"<b>📚 Paper radar - {total_count} new</b>"
 
 
 def _truncate(text: str, limit: int) -> str:
-    """Truncate a string to ``limit`` characters with an ellipsis."""
+    """Truncate text to a display limit.
+
+    Args:
+        text: Text to truncate.
+        limit: Maximum number of characters to return.
+
+    Returns:
+        The original text or an ellipsis-suffixed truncated version.
+
+    """
     if len(text) <= limit:
         return text
     return text[: limit - 3].rstrip() + "..."
@@ -154,7 +181,17 @@ def _message_text(
     *,
     footer: list[str] | None = None,
 ) -> str:
-    """Join digest header, blocks, and an optional footer into one message."""
+    """Join digest header, paper blocks, and an optional footer.
+
+    Args:
+        header: Header lines for the Telegram message.
+        blocks: Rendered paper blocks to include.
+        footer: Optional footer lines, usually an omission note.
+
+    Returns:
+        A single newline-separated Telegram message.
+
+    """
     lines = list(header)
     for block in blocks:
         lines.extend(block)
