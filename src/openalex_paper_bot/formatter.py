@@ -129,17 +129,17 @@ def _paper_block(paper: Paper, *, summary: str | None = None) -> list[str]:
     lines = [
         f'<b><a href="{escape(paper.landing_url, quote=True)}">{escape(_truncate(paper.title, 180))}</a></b>',
     ]
-    if summary:
-        lines.append(f"💡 {escape(_truncate(summary, 260))}")
-    lines.extend(
-        [
-            f"👥 <i>{escape(_truncate(paper.authors_summary, 160))}</i>",
-            f"📅 {paper.publication_date.isoformat() if paper.publication_date else 'Unknown date'}",
-        ]
-    )
     if paper.matched_targets:
         matches = ", ".join(escape(target) for target in paper.matched_targets)
         lines.append(f"🏷 {matches}")
+    if summary:
+        lines.append(f"<blockquote>💡 {escape(_truncate(summary, 260))}</blockquote>")
+    # lines.extend(
+    #     [
+    #         f"👥 <i>{escape(_truncate(paper.authors_summary, 160))}</i>",
+    #         f"📅 {paper.publication_date.isoformat() if paper.publication_date else 'Unknown date'}",
+    #     ]
+    # )
     return lines
 
 

@@ -30,8 +30,6 @@ def test_build_digest_flat_list_with_match_lines() -> None:
 
     assert digest.startswith("<b>📚 Paper radar - 2 new</b>")
     assert '<b><a href="https://example.com/paper-1">A useful paper</a></b>' in digest
-    assert "👥 <i>Alice, Bob</i>" in digest
-    assert "📅 2026-04-03" in digest
     assert "🏷 Yann LeCun, Meta" in digest
     assert "🏷 Shirley Ho" in digest
     # No section headers
@@ -90,9 +88,11 @@ def test_build_digest_renders_escaped_summary_after_title() -> None:
     )
 
     assert '<b><a href="https://example.com/paper">A useful paper</a></b>' in digest
+    assert "🏷 Meta" in digest
+    assert "<blockquote>💡 Uses &lt;agents&gt; &amp; retrieval.</blockquote>" in digest
     assert "💡 Uses &lt;agents&gt; &amp; retrieval." in digest
     assert "💡 TL;DR" not in digest
-    assert digest.index("💡 Uses") < digest.index("👥")
+    assert digest.index("🏷 Meta") < digest.index("💡 Uses")
 
 
 def test_build_digest_empty_message() -> None:
