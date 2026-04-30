@@ -1,9 +1,10 @@
 name: Daily Paper Alert
 
 on:
-  schedule:
-    - cron: "0 7 * * *"
   workflow_dispatch:
+  schedule:
+    - cron: '0 8 * * *'
+      timezone: 'Asia/Jerusalem'
 
 permissions:
   contents: read
