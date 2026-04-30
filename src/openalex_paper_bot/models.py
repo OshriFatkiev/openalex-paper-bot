@@ -223,6 +223,8 @@ class WatchlistConfig(BaseModel):
         targets: Author and institution watch targets.
         topic_filters: Broad field-based topic filters.
         global_queries: Optional global keyword discovery queries.
+        ignore_author_name_terms: Author-name terms that suppress target-only
+            pseudo-author matches.
         keywords: Post-retrieval keyword include/exclude filters.
         summaries: Optional per-paper TL;DR generation settings.
         telegram: Telegram delivery options.
@@ -234,6 +236,7 @@ class WatchlistConfig(BaseModel):
     targets: list[WatchTarget]
     topic_filters: TopicFilters = Field(default_factory=TopicFilters)
     global_queries: list[GlobalQuery] = Field(default_factory=list)
+    ignore_author_name_terms: list[str] = Field(default_factory=list)
     keywords: KeywordFilters = Field(default_factory=KeywordFilters)
     summaries: SummaryOptions = Field(default_factory=SummaryOptions)
     telegram: TelegramOptions = Field(default_factory=TelegramOptions)
@@ -246,6 +249,12 @@ class WatchlistConfig(BaseModel):
         if not deduped:
             raise ValueError("work_types cannot be empty.")
         return deduped
+
+    @field_validator("ignore_author_name_terms")
+    @classmethod
+    def validate_ignore_author_name_terms(cls, value: list[str]) -> list[str]:
+        """Normalize and deduplicate pseudo-author ignore terms."""
+        return list(dict.fromkeys(term.strip() for term in value if term.strip()))
 
     @field_validator("lookback_days")
     @classmethod

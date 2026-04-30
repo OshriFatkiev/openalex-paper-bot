@@ -10,6 +10,12 @@ topic_filters:
     - name: Computer Science
       openalex_id: null
 
+ignore_author_name_terms:
+  - chatgpt
+  - gpt-
+  - gemini
+  - claude
+
 targets:
   - type: author
     name: Yann LeCun

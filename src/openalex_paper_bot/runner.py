@@ -84,6 +84,7 @@ class _PaperDiscoveryClient(Protocol):
         *,
         work_types: list[WorkType],
         topic_filters: list[str] | None = None,
+        ignore_author_name_terms: list[str] | None = None,
     ) -> list[Paper]:
         """Fetch recent works for an author target."""
         ...
@@ -95,6 +96,7 @@ class _PaperDiscoveryClient(Protocol):
         *,
         work_types: list[WorkType],
         topic_filters: list[str] | None = None,
+        ignore_author_name_terms: list[str] | None = None,
     ) -> list[Paper]:
         """Fetch recent works for an institution target."""
         ...
@@ -317,6 +319,7 @@ def fetch_papers(
                 from_date,
                 work_types=config.watchlist.work_types,
                 topic_filters=topic_filters,
+                ignore_author_name_terms=config.watchlist.ignore_author_name_terms,
             )
             if target.type == "author"
             else client.fetch_recent_works_for_institution(
@@ -324,6 +327,7 @@ def fetch_papers(
                 from_date,
                 work_types=config.watchlist.work_types,
                 topic_filters=topic_filters,
+                ignore_author_name_terms=config.watchlist.ignore_author_name_terms,
             )
         )
         _merge_papers(deduped, papers, label=target.name)

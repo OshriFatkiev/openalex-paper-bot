@@ -24,6 +24,21 @@ class RecordingOpenAlexClient(OpenAlexClient):
         return {"results": [], "meta": {"next_cursor": None}}
 
 
+class StaticWorksOpenAlexClient(OpenAlexClient):
+    def __init__(self, works: list[dict[str, Any]]) -> None:
+        super().__init__("test-key")
+        self.works = works
+
+    def _request_json(
+        self,
+        method: str,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        return {"results": self.works, "meta": {"next_cursor": None}}
+
+
 def test_author_and_institution_fetches_use_configured_work_types() -> None:
     client = RecordingOpenAlexClient()
     try:
@@ -99,6 +114,137 @@ def test_topic_field_filters_support_primary_and_any_topic_matching() -> None:
         ) == ["topics.field.id:17"]
     finally:
         client.close()
+
+
+def test_institution_fetch_drops_paper_matched_only_by_ignored_author_name() -> None:
+    client = StaticWorksOpenAlexClient(
+        [
+            {
+                "id": "https://openalex.org/W1",
+                "title": "Pseudo author paper",
+                "publication_date": "2026-04-03",
+                "doi": None,
+                "authorships": [
+                    {
+                        "author": {"id": "https://openalex.org/A1", "display_name": "GPT-5.2 Thinking"},
+                        "institutions": [{"id": "https://openalex.org/I123"}],
+                        "raw_author_name": "GPT-5.2 Thinking",
+                    }
+                ],
+                "primary_location": {"landing_page_url": "https://example.com/paper"},
+                "abstract_inverted_index": None,
+            }
+        ]
+    )
+    try:
+        papers = client.fetch_recent_works_for_institution(
+            "https://openalex.org/I123",
+            date(2026, 3, 31),
+            work_types=["article"],
+            ignore_author_name_terms=["gpt-"],
+        )
+    finally:
+        client.close()
+
+    assert papers == []
+
+
+def test_institution_fetch_keeps_paper_with_non_ignored_matching_author() -> None:
+    client = StaticWorksOpenAlexClient(
+        [
+            {
+                "id": "https://openalex.org/W1",
+                "title": "Real author paper",
+                "publication_date": "2026-04-03",
+                "doi": None,
+                "authorships": [
+                    {
+                        "author": {"id": "https://openalex.org/A1", "display_name": "GPT-5.2 Thinking"},
+                        "institutions": [{"id": "https://openalex.org/I123"}],
+                        "raw_author_name": "GPT-5.2 Thinking",
+                    },
+                    {
+                        "author": {"id": "https://openalex.org/A2", "display_name": "Alice Researcher"},
+                        "institutions": [{"id": "https://openalex.org/I123"}],
+                        "raw_author_name": "Alice Researcher",
+                    },
+                ],
+                "primary_location": {"landing_page_url": "https://example.com/paper"},
+                "abstract_inverted_index": None,
+            }
+        ]
+    )
+    try:
+        papers = client.fetch_recent_works_for_institution(
+            "https://openalex.org/I123",
+            date(2026, 3, 31),
+            work_types=["article"],
+            ignore_author_name_terms=["gpt-"],
+        )
+    finally:
+        client.close()
+
+    assert [paper.work_id for paper in papers] == ["https://openalex.org/W1"]
+
+
+def test_author_fetch_drops_paper_when_matching_author_name_is_ignored() -> None:
+    client = StaticWorksOpenAlexClient(
+        [
+            {
+                "id": "https://openalex.org/W1",
+                "title": "Pseudo author paper",
+                "publication_date": "2026-04-03",
+                "doi": None,
+                "authorships": [
+                    {
+                        "author": {"id": "https://openalex.org/A123", "display_name": "OpenAI(ChatGPT)"},
+                        "institutions": [{"id": "https://openalex.org/I123"}],
+                        "raw_author_name": "OpenAI(ChatGPT)",
+                    }
+                ],
+                "primary_location": {"landing_page_url": "https://example.com/paper"},
+                "abstract_inverted_index": None,
+            }
+        ]
+    )
+    try:
+        papers = client.fetch_recent_works_for_author(
+            "https://openalex.org/A123",
+            date(2026, 3, 31),
+            work_types=["article"],
+            ignore_author_name_terms=["chatgpt"],
+        )
+    finally:
+        client.close()
+
+    assert papers == []
+
+
+def test_target_fetch_keeps_paper_when_matching_authorship_data_is_missing() -> None:
+    client = StaticWorksOpenAlexClient(
+        [
+            {
+                "id": "https://openalex.org/W1",
+                "title": "Incomplete paper",
+                "publication_date": "2026-04-03",
+                "doi": None,
+                "authorships": [],
+                "primary_location": {"landing_page_url": "https://example.com/paper"},
+                "abstract_inverted_index": None,
+            }
+        ]
+    )
+    try:
+        papers = client.fetch_recent_works_for_institution(
+            "https://openalex.org/I123",
+            date(2026, 3, 31),
+            work_types=["article"],
+            ignore_author_name_terms=["chatgpt"],
+        )
+    finally:
+        client.close()
+
+    assert [paper.work_id for paper in papers] == ["https://openalex.org/W1"]
 
 
 def test_paper_from_work_reconstructs_abstract_from_inverted_index() -> None:

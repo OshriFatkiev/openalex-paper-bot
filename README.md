@@ -148,6 +148,12 @@ topic_filters:
     - name: Physics
       openalex_id: https://openalex.org/fields/31
 
+ignore_author_name_terms:
+  - chatgpt
+  - gpt-
+  - gemini
+  - claude
+
 targets:
   - type: author
     name: Yann LeCun
@@ -200,6 +206,9 @@ Notes:
 - `topic_filters.match_mode: primary` uses `primary_topic.field.id`, which is narrower and usually better.
 - `topic_filters.match_mode: any_topic` uses `topics.field.id`, which is broader.
 - `resolve --write` also fills in missing OpenAlex field IDs under `topic_filters.fields`.
+- `ignore_author_name_terms` suppresses target matches caused only by pseudo-author names such as `ChatGPT`,
+  `GPT-5.2 Thinking`, or `OpenAI(ChatGPT)`. It does not block title, abstract, or global query matches.
+- Papers ignored for one target can still appear when they also match another legitimate target or global query.
 - Author targets may use `openalex_id`, `orcid`, or `name`.
 - Institution targets may use `openalex_id`, `ror`, or `name`.
 - `name` is optional when an ID is already present. Running `resolve --write` fills missing names from OpenAlex.

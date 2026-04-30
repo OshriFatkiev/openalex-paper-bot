@@ -39,11 +39,13 @@ class FakeDiscoveryClient:
         *,
         work_types: list[WorkType],
         topic_filters: list[str] | None = None,
+        ignore_author_name_terms: list[str] | None = None,
     ) -> list[Paper]:
         assert author_id == "https://openalex.org/A123"
         assert from_date == date(2026, 4, 1)
         assert work_types == ["article", "preprint"]
         assert topic_filters == ["primary_topic.field.id:17"]
+        assert ignore_author_name_terms == []
         return [
             Paper(
                 work_id="https://openalex.org/W1",
@@ -61,6 +63,7 @@ class FakeDiscoveryClient:
         *,
         work_types: list[WorkType],
         topic_filters: list[str] | None = None,
+        ignore_author_name_terms: list[str] | None = None,
     ) -> list[Paper]:
         raise AssertionError("Institution fetch should not be called in this test.")
 
@@ -162,6 +165,97 @@ def test_watchlist_global_query_defaults_and_labels() -> None:
     assert watchlist.global_queries[1].display_label() == "Custom query"
     assert watchlist.work_types == ["article", "preprint"]
     assert watchlist.topic_filters.match_mode == "primary"
+    assert watchlist.ignore_author_name_terms == []
+
+
+def test_fetch_papers_keeps_global_query_match_after_ignored_target_match() -> None:
+    class IgnoredTargetDiscoveryClient:
+        def topic_field_filters(
+            self,
+            field_ids: list[str],
+            *,
+            match_mode: TopicMatchMode,
+        ) -> list[str]:
+            assert field_ids == []
+            assert match_mode == "primary"
+            return []
+
+        def fetch_recent_works_for_author(
+            self,
+            author_id: str,
+            from_date: date,
+            *,
+            work_types: list[WorkType],
+            topic_filters: list[str] | None = None,
+            ignore_author_name_terms: list[str] | None = None,
+        ) -> list[Paper]:
+            raise AssertionError("Author fetch should not be called in this test.")
+
+        def fetch_recent_works_for_institution(
+            self,
+            inst_id: str,
+            from_date: date,
+            *,
+            work_types: list[WorkType],
+            topic_filters: list[str] | None = None,
+            ignore_author_name_terms: list[str] | None = None,
+        ) -> list[Paper]:
+            assert inst_id == "https://openalex.org/I123"
+            assert ignore_author_name_terms == ["chatgpt"]
+            return []
+
+        def fetch_recent_works_for_query(
+            self,
+            query: str,
+            from_date: date,
+            *,
+            field: GlobalQueryField = "title_and_abstract",
+            work_types: list[WorkType],
+            topic_filters: list[str] | None = None,
+        ) -> list[Paper]:
+            assert query == "world model"
+            return [
+                Paper(
+                    work_id="https://openalex.org/W1",
+                    title="Target paper",
+                    publication_date=date(2026, 4, 3),
+                    landing_url="https://example.com/w1",
+                    authors_summary="Alice",
+                )
+            ]
+
+    watchlist = WatchlistConfig.model_validate(
+        {
+            "targets": [{"type": "institution", "name": "OpenAI", "openalex_id": "I123"}],
+            "global_queries": [{"query": "world model"}],
+            "ignore_author_name_terms": [" chatgpt ", ""],
+        }
+    )
+    config = RuntimeConfig(
+        project_root=Path("."),
+        watchlist_path=Path("watchlist.yaml"),
+        state_path=Path("data/state.json"),
+        watchlist=watchlist,
+    )
+    resolved_targets = [
+        ResolvedTarget(
+            type="institution",
+            name="OpenAI",
+            openalex_id="https://openalex.org/I123",
+            resolved_name="OpenAI",
+        )
+    ]
+
+    papers = fetch_papers(
+        config,
+        resolved_targets,
+        [],
+        IgnoredTargetDiscoveryClient(),
+        from_date=date(2026, 4, 1),
+    )
+
+    assert [paper.work_id for paper in papers] == ["https://openalex.org/W1"]
+    assert papers[0].matched_targets == ["world model"]
 
 
 def test_collapse_equivalent_papers_prefers_doi_record_and_keeps_all_source_ids() -> None:

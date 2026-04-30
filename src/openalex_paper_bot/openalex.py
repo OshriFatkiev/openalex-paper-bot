@@ -52,6 +52,59 @@ def _plain_text_from_markup(markup: str) -> str | None:
     return text or None
 
 
+def _authorship_author_key(authorship: dict[str, Any]) -> str | None:
+    """Return the compact OpenAlex author key for an authorship."""
+    author = authorship.get("author")
+    if not isinstance(author, dict):
+        return None
+    raw_author_id = author.get("id")
+    if not isinstance(raw_author_id, str):
+        return None
+    try:
+        return openalex_key(raw_author_id, expected_prefix="A")
+    except ValueError:
+        return None
+
+
+def _authorship_has_institution(authorship: dict[str, Any], institution_key: str) -> bool:
+    """Return whether an authorship is affiliated with a target institution."""
+    institutions = authorship.get("institutions")
+    if not isinstance(institutions, list):
+        return False
+
+    expected_key = institution_key.upper()
+    for institution in institutions:
+        if not isinstance(institution, dict):
+            continue
+        raw_institution_id = institution.get("id")
+        if not isinstance(raw_institution_id, str):
+            continue
+        try:
+            institution_id = openalex_key(raw_institution_id, expected_prefix="I")
+        except ValueError:
+            continue
+        if institution_id == expected_key:
+            return True
+    return False
+
+
+def _authorship_name_matches_terms(authorship: dict[str, Any], terms: list[str]) -> bool:
+    """Return whether an authorship name matches any ignored pseudo-author term."""
+    names = []
+    author = authorship.get("author")
+    if isinstance(author, dict):
+        raw_display_name = author.get("display_name")
+        if isinstance(raw_display_name, str):
+            names.append(raw_display_name)
+    raw_author_name = authorship.get("raw_author_name")
+    if isinstance(raw_author_name, str):
+        names.append(raw_author_name)
+
+    if not names:
+        return False
+    return any(term in name.casefold() for name in names for term in terms)
+
+
 def normalize_openalex_id(raw_id: str, *, expected_prefix: str | None = None) -> str:
     """Normalize a raw OpenAlex ID into the canonical URL form.
 
@@ -360,6 +413,7 @@ class OpenAlexClient:
         *,
         work_types: list[WorkType],
         topic_filters: list[str] | None = None,
+        ignore_author_name_terms: list[str] | None = None,
     ) -> list[Paper]:
         """Fetch recent works matching an author OpenAlex ID.
 
@@ -368,6 +422,8 @@ class OpenAlexClient:
             from_date: Inclusive publication date lower bound.
             work_types: Allowed OpenAlex work types.
             topic_filters: Optional precomputed OpenAlex topic filters.
+            ignore_author_name_terms: Optional pseudo-author terms that should
+                suppress this target match.
 
         Returns:
             A list of normalized papers returned by OpenAlex.
@@ -381,6 +437,8 @@ class OpenAlexClient:
                 *(topic_filters or []),
             ],
             from_date=from_date,
+            matched_author_key=author_key,
+            ignore_author_name_terms=ignore_author_name_terms,
         )
 
     def fetch_recent_works_for_institution(
@@ -390,6 +448,7 @@ class OpenAlexClient:
         *,
         work_types: list[WorkType],
         topic_filters: list[str] | None = None,
+        ignore_author_name_terms: list[str] | None = None,
     ) -> list[Paper]:
         """Fetch recent works matching an institution OpenAlex ID.
 
@@ -398,6 +457,8 @@ class OpenAlexClient:
             from_date: Inclusive publication date lower bound.
             work_types: Allowed OpenAlex work types.
             topic_filters: Optional precomputed OpenAlex topic filters.
+            ignore_author_name_terms: Optional pseudo-author terms that should
+                suppress this target match.
 
         Returns:
             A list of normalized papers returned by OpenAlex.
@@ -411,6 +472,8 @@ class OpenAlexClient:
                 *(topic_filters or []),
             ],
             from_date=from_date,
+            matched_institution_key=institution_key,
+            ignore_author_name_terms=ignore_author_name_terms,
         )
 
     def fetch_recent_works_for_query(
@@ -567,6 +630,9 @@ class OpenAlexClient:
         params: dict[str, Any] | None = None,
         entity_filters: list[str] | None = None,
         from_date: date | None = None,
+        matched_author_key: str | None = None,
+        matched_institution_key: str | None = None,
+        ignore_author_name_terms: list[str] | None = None,
     ) -> list[Paper]:
         """Fetch paginated work results and normalize them into ``Paper`` objects.
 
@@ -575,6 +641,10 @@ class OpenAlexClient:
             entity_filters: Optional list of filters combined into the query.
             from_date: Inclusive publication date lower bound for entity-based
                 fetches.
+            matched_author_key: Optional target author key for pseudo-author filtering.
+            matched_institution_key: Optional target institution key for pseudo-author filtering.
+            ignore_author_name_terms: Optional pseudo-author terms that suppress
+                target matches.
 
         Returns:
             A list of normalized papers.
@@ -598,13 +668,57 @@ class OpenAlexClient:
                 },
             )
             results = payload.get("results", [])
-            papers.extend(self._paper_from_work(item) for item in results)
+            papers.extend(
+                self._paper_from_work(item)
+                for item in results
+                if self._keeps_target_match(
+                    item,
+                    matched_author_key=matched_author_key,
+                    matched_institution_key=matched_institution_key,
+                    ignore_author_name_terms=ignore_author_name_terms,
+                )
+            )
             raw_cursor = (payload.get("meta") or {}).get("next_cursor")
             cursor = raw_cursor if isinstance(raw_cursor, str) else None
             if not results:
                 break
 
         return self._fill_missing_abstracts_from_crossref(papers)
+
+    @staticmethod
+    def _keeps_target_match(
+        work: dict[str, Any],
+        *,
+        matched_author_key: str | None,
+        matched_institution_key: str | None,
+        ignore_author_name_terms: list[str] | None,
+    ) -> bool:
+        """Return whether a target match should survive pseudo-author filtering."""
+        terms = [term.casefold() for term in ignore_author_name_terms or [] if term.strip()]
+        if not terms or not (matched_author_key or matched_institution_key):
+            return True
+
+        authorships = work.get("authorships")
+        if not isinstance(authorships, list):
+            return True
+
+        if matched_author_key:
+            matching_authorships = [
+                authorship
+                for authorship in authorships
+                if isinstance(authorship, dict) and _authorship_author_key(authorship) == matched_author_key.upper()
+            ]
+        else:
+            matching_authorships = [
+                authorship
+                for authorship in authorships
+                if isinstance(authorship, dict)
+                and _authorship_has_institution(authorship, matched_institution_key or "")
+            ]
+
+        if not matching_authorships:
+            return True
+        return any(not _authorship_name_matches_terms(authorship, terms) for authorship in matching_authorships)
 
     def _fill_missing_abstracts_from_crossref(self, papers: list[Paper]) -> list[Paper]:
         """Fill missing abstracts from Crossref when a normalized DOI is available."""
