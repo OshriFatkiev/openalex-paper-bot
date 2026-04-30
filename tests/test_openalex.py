@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
+import httpx
+
 from openalex_paper_bot.openalex import OpenAlexClient
 
 
@@ -134,3 +136,146 @@ def test_paper_from_work_uses_none_for_missing_abstract() -> None:
     )
 
     assert paper.abstract is None
+
+
+def test_fetch_fills_missing_abstract_from_crossref() -> None:
+    crossref_requests: list[httpx.Request] = []
+
+    def crossref_handler(request: httpx.Request) -> httpx.Response:
+        crossref_requests.append(request)
+        return httpx.Response(
+            200,
+            json={
+                "message": {
+                    "abstract": "<jats:p>Crossref <jats:italic>abstract</jats:italic> text.</jats:p>",
+                }
+            },
+        )
+
+    class CrossrefFallbackClient(OpenAlexClient):
+        def _request_json(
+            self,
+            method: str,
+            path: str,
+            *,
+            params: dict[str, Any] | None = None,
+        ) -> dict[str, Any]:
+            return {
+                "results": [
+                    {
+                        "id": "https://openalex.org/W1",
+                        "title": "Useful paper",
+                        "publication_date": "2026-04-03",
+                        "doi": "https://doi.org/10.1000/example",
+                        "authorships": [],
+                        "primary_location": {"landing_page_url": "https://example.com/paper"},
+                        "abstract_inverted_index": None,
+                    }
+                ],
+                "meta": {"next_cursor": None},
+            }
+
+    crossref_client = httpx.Client(
+        base_url="https://api.crossref.org",
+        transport=httpx.MockTransport(crossref_handler),
+    )
+    client = CrossrefFallbackClient("test-key", crossref_client=crossref_client)
+    try:
+        papers = client.fetch_recent_works_for_query(
+            "useful",
+            date(2026, 3, 31),
+            work_types=["article"],
+        )
+    finally:
+        client.close()
+
+    assert papers[0].abstract == "Crossref abstract text."
+    assert [request.url.raw_path for request in crossref_requests] == [b"/works/10.1000%2Fexample"]
+
+
+def test_fetch_keeps_openalex_abstract_without_crossref_lookup() -> None:
+    def crossref_handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError("Crossref should not be queried when OpenAlex has an abstract.")
+
+    class OpenAlexAbstractClient(OpenAlexClient):
+        def _request_json(
+            self,
+            method: str,
+            path: str,
+            *,
+            params: dict[str, Any] | None = None,
+        ) -> dict[str, Any]:
+            return {
+                "results": [
+                    {
+                        "id": "https://openalex.org/W1",
+                        "title": "Useful paper",
+                        "publication_date": "2026-04-03",
+                        "doi": "https://doi.org/10.1000/example",
+                        "authorships": [],
+                        "primary_location": {"landing_page_url": "https://example.com/paper"},
+                        "abstract_inverted_index": {"OpenAlex": [0], "abstract.": [1]},
+                    }
+                ],
+                "meta": {"next_cursor": None},
+            }
+
+    crossref_client = httpx.Client(
+        base_url="https://api.crossref.org",
+        transport=httpx.MockTransport(crossref_handler),
+    )
+    client = OpenAlexAbstractClient("test-key", crossref_client=crossref_client)
+    try:
+        papers = client.fetch_recent_works_for_query(
+            "useful",
+            date(2026, 3, 31),
+            work_types=["article"],
+        )
+    finally:
+        client.close()
+
+    assert papers[0].abstract == "OpenAlex abstract."
+
+
+def test_fetch_leaves_abstract_missing_when_crossref_has_none() -> None:
+    def crossref_handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"message": {}})
+
+    class MissingAbstractClient(OpenAlexClient):
+        def _request_json(
+            self,
+            method: str,
+            path: str,
+            *,
+            params: dict[str, Any] | None = None,
+        ) -> dict[str, Any]:
+            return {
+                "results": [
+                    {
+                        "id": "https://openalex.org/W1",
+                        "title": "Useful paper",
+                        "publication_date": "2026-04-03",
+                        "doi": "https://doi.org/10.1000/example",
+                        "authorships": [],
+                        "primary_location": {"landing_page_url": "https://example.com/paper"},
+                        "abstract_inverted_index": None,
+                    }
+                ],
+                "meta": {"next_cursor": None},
+            }
+
+    crossref_client = httpx.Client(
+        base_url="https://api.crossref.org",
+        transport=httpx.MockTransport(crossref_handler),
+    )
+    client = MissingAbstractClient("test-key", crossref_client=crossref_client)
+    try:
+        papers = client.fetch_recent_works_for_query(
+            "useful",
+            date(2026, 3, 31),
+            work_types=["article"],
+        )
+    finally:
+        client.close()
+
+    assert papers[0].abstract is None

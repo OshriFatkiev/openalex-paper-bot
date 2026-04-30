@@ -9,18 +9,47 @@ from __future__ import annotations
 
 import time
 from datetime import date
+from html.parser import HTMLParser
 from typing import Any, cast
+from urllib.parse import quote
 
 import httpx
 
 from openalex_paper_bot.models import EntityRef, EntityType, GlobalQueryField, Paper, TopicMatchMode, WorkType
 
 BASE_URL = "https://api.openalex.org"
+CROSSREF_BASE_URL = "https://api.crossref.org"
 OPENALEX_ID_PREFIX = "https://openalex.org/"
 ORCID_ID_PREFIX = "https://orcid.org/"
 ROR_ID_PREFIX = "https://ror.org/"
 DOI_URL_PREFIX = "https://doi.org/"
 FIELD_ID_PREFIX = "https://openalex.org/fields/"
+
+
+class _PlainTextParser(HTMLParser):
+    """Extract readable text from Crossref's JATS/HTML abstract fragments."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.parts: list[str] = []
+
+    def handle_data(self, data: str) -> None:
+        self.parts.append(data)
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self.parts.append(" ")
+
+    def handle_endtag(self, tag: str) -> None:
+        self.parts.append(" ")
+
+
+def _plain_text_from_markup(markup: str) -> str | None:
+    """Return normalized plain text from a Crossref abstract fragment."""
+    parser = _PlainTextParser()
+    parser.feed(markup)
+    parser.close()
+    text = " ".join("".join(parser.parts).split())
+    return text or None
 
 
 def normalize_openalex_id(raw_id: str, *, expected_prefix: str | None = None) -> str:
@@ -173,17 +202,29 @@ def field_key(raw_id: str) -> str:
 class OpenAlexClient:
     """Resolve OpenAlex entities and fetch normalized recent works."""
 
-    def __init__(self, api_key: str, *, timeout: float = 20.0) -> None:
+    def __init__(
+        self,
+        api_key: str,
+        *,
+        timeout: float = 20.0,
+        crossref_client: httpx.Client | None = None,
+    ) -> None:
         """Initialize the OpenAlex client.
 
         Args:
             api_key: OpenAlex API key used for all requests.
             timeout: Request timeout in seconds.
+            crossref_client: Optional HTTP client used for Crossref abstract fallback.
 
         """
         self.api_key = api_key
         self._client = httpx.Client(
             base_url=BASE_URL,
+            timeout=timeout,
+            headers={"User-Agent": "openalex-paper-bot/0.1.0"},
+        )
+        self._crossref_client = crossref_client or httpx.Client(
+            base_url=CROSSREF_BASE_URL,
             timeout=timeout,
             headers={"User-Agent": "openalex-paper-bot/0.1.0"},
         )
@@ -199,6 +240,7 @@ class OpenAlexClient:
     def close(self) -> None:
         """Close the underlying HTTP client."""
         self._client.close()
+        self._crossref_client.close()
 
     def resolve_author(self, name: str) -> EntityRef:
         """Resolve an author name to a stable OpenAlex ID.
@@ -562,7 +604,33 @@ class OpenAlexClient:
             if not results:
                 break
 
-        return papers
+        return self._fill_missing_abstracts_from_crossref(papers)
+
+    def _fill_missing_abstracts_from_crossref(self, papers: list[Paper]) -> list[Paper]:
+        """Fill missing abstracts from Crossref when a normalized DOI is available."""
+        enriched = list(papers)
+        for index, paper in enumerate(enriched):
+            if paper.abstract or not paper.doi:
+                continue
+            abstract = self._crossref_abstract_for_doi(paper.doi)
+            if abstract:
+                enriched[index] = paper.model_copy(update={"abstract": abstract})
+        return enriched
+
+    def _crossref_abstract_for_doi(self, doi: str) -> str | None:
+        """Fetch and normalize a Crossref abstract for a DOI when available."""
+        try:
+            response = self._crossref_client.get(f"/works/{quote(doi, safe='')}")
+            response.raise_for_status()
+            payload = response.json()
+        except (httpx.HTTPError, ValueError):
+            return None
+
+        message = payload.get("message") if isinstance(payload, dict) else None
+        raw_abstract = message.get("abstract") if isinstance(message, dict) else None
+        if not isinstance(raw_abstract, str):
+            return None
+        return _plain_text_from_markup(raw_abstract)
 
     def _works_params(
         self,
