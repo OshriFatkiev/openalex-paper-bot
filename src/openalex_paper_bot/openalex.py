@@ -7,6 +7,7 @@ results, and normalizing responses into internal ``Paper`` objects.
 
 from __future__ import annotations
 
+import logging
 import time
 from datetime import date
 from html.parser import HTMLParser
@@ -24,6 +25,8 @@ ORCID_ID_PREFIX = "https://orcid.org/"
 ROR_ID_PREFIX = "https://ror.org/"
 DOI_URL_PREFIX = "https://doi.org/"
 FIELD_ID_PREFIX = "https://openalex.org/fields/"
+
+logger = logging.getLogger(__name__)
 
 
 class _PlainTextParser(HTMLParser):
@@ -737,7 +740,8 @@ class OpenAlexClient:
             response = self._crossref_client.get(f"/works/{quote(doi, safe='')}")
             response.raise_for_status()
             payload = response.json()
-        except (httpx.HTTPError, ValueError):
+        except (httpx.HTTPError, ValueError) as exc:
+            logger.warning("Crossref abstract lookup failed for DOI %s: %s", doi, exc)
             return None
 
         message = payload.get("message") if isinstance(payload, dict) else None
@@ -831,6 +835,13 @@ class OpenAlexClient:
             try:
                 response = self._client.request(method, path, params=params)
                 if response.status_code in {429, 500, 502, 503, 504} and attempt < 3:
+                    logger.warning(
+                        "OpenAlex %s %s returned %d, retrying (%d/3)",
+                        method,
+                        path,
+                        response.status_code,
+                        attempt,
+                    )
                     time.sleep(0.5 * attempt)
                     continue
                 response.raise_for_status()
@@ -838,6 +849,7 @@ class OpenAlexClient:
             except (httpx.HTTPError, ValueError) as exc:
                 last_error = exc
                 if attempt < 3:
+                    logger.warning("OpenAlex %s %s failed: %s, retrying (%d/3)", method, path, exc, attempt)
                     time.sleep(0.5 * attempt)
                     continue
 

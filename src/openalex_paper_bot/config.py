@@ -6,6 +6,7 @@ watchlist validation, and command-specific runtime configuration assembly.
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 from typing import cast
@@ -13,6 +14,8 @@ from typing import cast
 import yaml
 
 from openalex_paper_bot.models import RuntimeConfig, WatchlistConfig
+
+logger = logging.getLogger(__name__)
 
 
 def find_project_root(start: Path | None = None) -> Path:
@@ -89,9 +92,13 @@ def load_watchlist(path: Path) -> WatchlistConfig:
 
     raw_data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     try:
-        return cast(WatchlistConfig, WatchlistConfig.model_validate(raw_data))
+        config = cast(WatchlistConfig, WatchlistConfig.model_validate(raw_data))
     except Exception as exc:  # pragma: no cover - pydantic already formats the details.
         raise ValueError(f"Invalid watchlist configuration in {path}: {exc}") from exc
+    target_count = len(config.targets)
+    query_count = len(config.global_queries)
+    logger.info("Loaded watchlist: %d targets, %d global queries", target_count, query_count)
+    return config
 
 
 def load_runtime_config(

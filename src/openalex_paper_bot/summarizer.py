@@ -7,6 +7,7 @@ GitHub Models-backed provider for local and GitHub Actions runs.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 from typing import Any, Protocol, cast
 
@@ -23,6 +24,8 @@ SUMMARY_SYSTEM_PROMPT = (
     "do not use markdown, and do not add hype."
 )
 SUMMARY_PROMPT_BUFFER_CHARS = 20
+
+logger = logging.getLogger(__name__)
 
 
 class PaperSummarizer(Protocol):
@@ -157,7 +160,8 @@ class GitHubModelsSummarizer:
             )
             response.raise_for_status()
             raw_response_data = response.json()
-        except (httpx.HTTPError, ValueError):
+        except (httpx.HTTPError, ValueError) as exc:
+            logger.warning("Summary request failed for %s: %s", paper.work_id, exc)
             return None
 
         if not isinstance(raw_response_data, dict):
@@ -192,6 +196,7 @@ def build_summarizer(
         return FakePaperSummarizer(max_chars=max_chars)
     if provider == "github_models":
         if not github_models_token:
+            logger.warning("GitHub Models token not set; skipping summaries")
             return None
         return GitHubModelsSummarizer(token=github_models_token, model=model, max_chars=max_chars)
     raise ValueError(f"Unsupported summary provider: {provider}")

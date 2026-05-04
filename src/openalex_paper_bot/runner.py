@@ -7,6 +7,7 @@ state persistence.
 
 from __future__ import annotations
 
+import logging
 import re
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -32,6 +33,8 @@ from openalex_paper_bot.openalex import OpenAlexClient
 from openalex_paper_bot.storage import read_state, updated_state, write_state
 from openalex_paper_bot.summarizer import build_paper_summaries
 from openalex_paper_bot.telegram import TelegramClient
+
+logger = logging.getLogger(__name__)
 
 
 class _TargetResolutionClient(Protocol):
@@ -145,6 +148,15 @@ def run(
     with OpenAlexClient(config.openalex_api_key or "") as openalex_client:
         resolved_targets = resolve_targets(config.watchlist, openalex_client)
         resolved_topic_fields = resolve_topic_fields(config.watchlist, openalex_client)
+        author_count = sum(1 for t in resolved_targets if t.type == "author")
+        inst_count = len(resolved_targets) - author_count
+        logger.info(
+            "Resolved %d targets (%d authors, %d institutions) and %d topic fields",
+            len(resolved_targets),
+            author_count,
+            inst_count,
+            len(resolved_topic_fields),
+        )
         papers = fetch_papers(
             config,
             resolved_targets,
@@ -163,6 +175,12 @@ def run(
         sent_work_ids=state.sent_work_ids,
         sent_paper_signatures=state.sent_paper_signatures,
     )
+    logger.info(
+        "Fetched %d papers, %d after keyword filters, %d new after dedup",
+        len(papers),
+        len(filtered_papers),
+        len(new_papers),
+    )
     message_sent = False
     if new_papers:
         summaries = build_paper_summaries(
@@ -170,10 +188,13 @@ def run(
             config.watchlist.summaries,
             github_models_token=config.github_models_token,
         )
+        if summaries:
+            logger.info("Generated %d summaries for %d papers", len(summaries), len(new_papers))
         digests = build_digest_messages(new_papers, summaries=summaries)
         if dry_run:
             for digest in digests:
                 print(digest)
+            logger.info("Dry run: printed %d digest messages to stdout", len(digests))
         else:
             with TelegramClient(
                 config.telegram_bot_token or "",
@@ -182,6 +203,7 @@ def run(
                 for digest in digests:
                     telegram_client.send_message(digest, parse_mode="HTML")
             message_sent = True
+            logger.info("Sent %d Telegram digest messages", len(digests))
         if not dry_run:
             state = updated_state(
                 state,

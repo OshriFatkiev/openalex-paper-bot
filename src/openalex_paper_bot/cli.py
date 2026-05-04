@@ -8,6 +8,7 @@ resetting local state.
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -19,6 +20,26 @@ from openalex_paper_bot.storage import reset_state
 
 COMMAND_NAMES = {"run", "resolve", "test-message", "reset-state"}
 HELP_FLAGS = {"-h", "--help"}
+
+_PACKAGE_PREFIX = "openalex_paper_bot."
+
+
+class _LogFormatter(logging.Formatter):
+    """Strip the package prefix from logger names for compact output."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        """Format a log record with a shortened module name.
+
+        Args:
+            record: Log record to format.
+
+        Returns:
+            The formatted log line with the package prefix removed.
+
+        """
+        if record.name.startswith(_PACKAGE_PREFIX):
+            record.name = record.name[len(_PACKAGE_PREFIX) :]
+        return super().format(record)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -108,20 +129,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         A process exit code.
 
     """
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(
+        _LogFormatter("%(asctime)s | %(levelname)s | %(name)s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+    )
+    logging.root.addHandler(handler)
+    logging.root.setLevel(logging.INFO)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
     parser = build_parser()
     args = parser.parse_args(normalize_argv(argv))
 
     try:
         if args.command == "run":
-            result = run(project_root=args.project_root, dry_run=args.dry_run)
-            mode = "Dry run" if args.dry_run else "Run"
-            print(
-                f"{mode} complete: "
-                f"{result.new_paper_count} new papers, "
-                f"{result.fetched_paper_count} matching papers after filters, "
-                f"message_sent={result.message_sent}, "
-                f"state={result.state_path}"
-            )
+            run(project_root=args.project_root, dry_run=args.dry_run)
             return 0
 
         if args.command == "resolve":

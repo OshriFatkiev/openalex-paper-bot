@@ -6,11 +6,14 @@ reliably, including retry handling for transient Telegram API failures.
 
 from __future__ import annotations
 
+import logging
 import time
 
 import httpx
 
 BASE_URL = "https://api.telegram.org"
+
+logger = logging.getLogger(__name__)
 
 
 class TelegramClient:
@@ -69,6 +72,7 @@ class TelegramClient:
             try:
                 response = self._client.post(f"/bot{self.bot_token}/sendMessage", json=payload)
                 if response.status_code in {429, 500, 502, 503, 504} and attempt < 3:
+                    logger.warning("Telegram sendMessage returned %d, retrying (%d/3)", response.status_code, attempt)
                     time.sleep(0.5 * attempt)
                     continue
                 response.raise_for_status()
@@ -79,6 +83,7 @@ class TelegramClient:
             except (httpx.HTTPError, ValueError, RuntimeError) as exc:
                 last_error = exc
                 if attempt < 3:
+                    logger.warning("Telegram sendMessage failed: %s, retrying (%d/3)", exc, attempt)
                     time.sleep(0.5 * attempt)
                     continue
         raise RuntimeError(f"Telegram sendMessage failed: {last_error}") from last_error

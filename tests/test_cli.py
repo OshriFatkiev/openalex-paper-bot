@@ -13,23 +13,21 @@ def test_default_command_runs_digest_when_no_subcommand(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    called = False
+
     def fake_run(*, project_root: Path | None = None, dry_run: bool = False) -> SimpleNamespace:
+        nonlocal called
+        called = True
         assert project_root is None
         assert dry_run is False
-        return SimpleNamespace(
-            new_paper_count=2,
-            fetched_paper_count=5,
-            message_sent=True,
-            state_path=Path("/tmp/state.json"),
-        )
+        return SimpleNamespace()
 
     monkeypatch.setattr("openalex_paper_bot.cli.run", fake_run)
 
     exit_code = main([])
 
-    captured = capsys.readouterr()
     assert exit_code == 0
-    assert "Run complete: 2 new papers, 5 matching papers after filters, message_sent=True" in captured.out
+    assert called
 
 
 def test_default_command_treats_top_level_options_as_run_options(
@@ -39,69 +37,61 @@ def test_default_command_treats_top_level_options_as_run_options(
 ) -> None:
     expected_project_root = tmp_path / "project"
     expected_project_root.mkdir()
+    called = False
 
     def fake_run(*, project_root: Path | None = None, dry_run: bool = False) -> SimpleNamespace:
+        nonlocal called
+        called = True
         assert project_root == expected_project_root
         assert dry_run is False
-        return SimpleNamespace(
-            new_paper_count=0,
-            fetched_paper_count=0,
-            message_sent=False,
-            state_path=expected_project_root / "data" / "state.json",
-        )
+        return SimpleNamespace()
 
     monkeypatch.setattr("openalex_paper_bot.cli.run", fake_run)
 
     exit_code = main(["--project-root", str(expected_project_root)])
 
-    captured = capsys.readouterr()
     assert exit_code == 0
-    assert "Run complete: 0 new papers, 0 matching papers after filters, message_sent=False" in captured.out
+    assert called
 
 
 def test_dry_run_flag_passes_through_to_runner(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    called = False
+
     def fake_run(*, project_root: Path | None = None, dry_run: bool = False) -> SimpleNamespace:
+        nonlocal called
+        called = True
         assert dry_run is True
-        return SimpleNamespace(
-            new_paper_count=3,
-            fetched_paper_count=7,
-            message_sent=False,
-            state_path=Path("/tmp/state.json"),
-        )
+        return SimpleNamespace()
 
     monkeypatch.setattr("openalex_paper_bot.cli.run", fake_run)
 
     exit_code = main(["run", "--dry-run"])
 
-    captured = capsys.readouterr()
     assert exit_code == 0
-    assert "Dry run complete: 3 new papers" in captured.out
-    assert "message_sent=False" in captured.out
+    assert called
 
 
 def test_dry_run_flag_works_with_implicit_run_command(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    called = False
+
     def fake_run(*, project_root: Path | None = None, dry_run: bool = False) -> SimpleNamespace:
+        nonlocal called
+        called = True
         assert dry_run is True
-        return SimpleNamespace(
-            new_paper_count=1,
-            fetched_paper_count=1,
-            message_sent=False,
-            state_path=Path("/tmp/state.json"),
-        )
+        return SimpleNamespace()
 
     monkeypatch.setattr("openalex_paper_bot.cli.run", fake_run)
 
     exit_code = main(["--dry-run"])
 
-    captured = capsys.readouterr()
     assert exit_code == 0
-    assert "Dry run complete: 1 new papers" in captured.out
+    assert called
 
 
 def test_reset_state_command_resets_state_with_yes_flag(
