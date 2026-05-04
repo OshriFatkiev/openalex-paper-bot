@@ -95,7 +95,7 @@ def test_github_models_summarizer_posts_chat_completion_request() -> None:
     assert "focused on the paper's key contribution" in body["messages"][1]["content"]
     assert "Use at most 14 words" in body["messages"][1]["content"]
     assert "Keep it under" not in body["messages"][1]["content"]
-    assert "Title: A useful paper" in body["messages"][1]["content"]
+    assert "Title:" not in body["messages"][1]["content"]
     assert "This paper introduces a benchmark" in body["messages"][1]["content"]
 
 

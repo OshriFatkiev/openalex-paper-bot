@@ -18,7 +18,7 @@ GITHUB_MODELS_CHAT_COMPLETIONS_URL = "https://models.github.ai/inference/chat/co
 GITHUB_API_VERSION = "2026-03-10"
 SUMMARY_SYSTEM_PROMPT = (
     "You write terse, neutral summaries of academic papers for a Telegram digest. "
-    "Use only the provided title and abstract. Return one compact sentence. "
+    "Use only the provided abstract. Return one compact sentence. "
     "Do not start with 'This paper' or 'The paper'. Do not mention missing information, "
     "do not use markdown, and do not add hype."
 )
@@ -329,9 +329,7 @@ def _summary_user_prompt(paper: Paper, max_chars: int) -> str:
     return (
         "Write one compact sentence focused on the paper's key contribution. "
         "Use at most 14 words. "
-        "Use only the title and abstract. "
         "Do not start with 'This paper' or 'The paper'.\n\n"
-        f"Title: {paper.title}\n\n"
         f"Abstract:\n{paper.abstract}"
     )
 
