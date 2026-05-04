@@ -124,6 +124,14 @@ uv run ppb
 
 `uv run ppb run` also still works if you prefer being explicit.
 
+Preview the digest without sending to Telegram:
+
+```bash
+uv run ppb --dry-run
+```
+
+Dry run fetches papers and generates summaries as usual, then prints the formatted digest to stdout instead of sending it. It does not update `data/state.json`, so a follow-up `uv run ppb` will still send the same papers.
+
 Running the bot twice will not resend the same OpenAlex work IDs because they are stored in the local ignored file `data/state.json`.
 
 If you activate `.venv` manually, bare `ppb` defaults to the daily run and `ppb ...` works directly too, but

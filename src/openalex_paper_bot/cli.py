@@ -40,6 +40,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Path to the repo root. Defaults to the nearest directory with watchlist.yaml.",
     )
+    run_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print the digest to stdout instead of sending to Telegram. Does not update state.",
+    )
 
     resolve_parser = subparsers.add_parser(
         "resolve",
@@ -108,9 +113,10 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     try:
         if args.command == "run":
-            result = run(project_root=args.project_root)
+            result = run(project_root=args.project_root, dry_run=args.dry_run)
+            mode = "Dry run" if args.dry_run else "Run"
             print(
-                "Run complete: "
+                f"{mode} complete: "
                 f"{result.new_paper_count} new papers, "
                 f"{result.fetched_paper_count} matching papers after filters, "
                 f"message_sent={result.message_sent}, "

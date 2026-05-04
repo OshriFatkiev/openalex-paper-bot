@@ -114,12 +114,19 @@ class _PaperDiscoveryClient(Protocol):
         ...
 
 
-def run(project_root: Path | None = None, *, today: date | None = None) -> RunResult:
+def run(
+    project_root: Path | None = None,
+    *,
+    today: date | None = None,
+    dry_run: bool = False,
+) -> RunResult:
     """Run the daily paper alert flow.
 
     Args:
         project_root: Optional explicit project root.
         today: Optional current date override for testing.
+        dry_run: When ``True``, print the digest to stdout instead of sending
+            via Telegram and skip state persistence.
 
     Returns:
         A summary of the completed run.
@@ -128,7 +135,7 @@ def run(project_root: Path | None = None, *, today: date | None = None) -> RunRe
     config = load_runtime_config(
         project_root=project_root,
         require_openalex=True,
-        require_telegram=True,
+        require_telegram=not dry_run,
     )
     current_date = today or datetime.now().date()
     executed_at = datetime.now(UTC)
@@ -164,32 +171,43 @@ def run(project_root: Path | None = None, *, today: date | None = None) -> RunRe
             github_models_token=config.github_models_token,
         )
         digests = build_digest_messages(new_papers, summaries=summaries)
-        with TelegramClient(
-            config.telegram_bot_token or "",
-            config.telegram_chat_id or "",
-        ) as telegram_client:
+        if dry_run:
             for digest in digests:
-                telegram_client.send_message(digest, parse_mode="HTML")
-        message_sent = True
-        state = updated_state(
-            state,
-            new_work_ids=[work_id for paper in new_papers for work_id in (paper.source_work_ids or [paper.work_id])],
-            new_paper_signatures=[
-                signature for paper in new_papers for signature in _paper_equivalence_signatures(paper)
-            ],
-            executed_at=executed_at,
-        )
+                print(digest)
+        else:
+            with TelegramClient(
+                config.telegram_bot_token or "",
+                config.telegram_chat_id or "",
+            ) as telegram_client:
+                for digest in digests:
+                    telegram_client.send_message(digest, parse_mode="HTML")
+            message_sent = True
+        if not dry_run:
+            state = updated_state(
+                state,
+                new_work_ids=[
+                    work_id for paper in new_papers for work_id in (paper.source_work_ids or [paper.work_id])
+                ],
+                new_paper_signatures=[
+                    signature for paper in new_papers for signature in _paper_equivalence_signatures(paper)
+                ],
+                executed_at=executed_at,
+            )
     else:
-        if config.watchlist.telegram.send_empty_report:
+        if dry_run:
+            print("No new matching papers.")
+        elif config.watchlist.telegram.send_empty_report:
             with TelegramClient(
                 config.telegram_bot_token or "",
                 config.telegram_chat_id or "",
             ) as telegram_client:
                 telegram_client.send_message("No new matching papers.")
             message_sent = True
-        state = updated_state(state, new_work_ids=[], new_paper_signatures=[], executed_at=executed_at)
+        if not dry_run:
+            state = updated_state(state, new_work_ids=[], new_paper_signatures=[], executed_at=executed_at)
 
-    write_state(config.state_path, state)
+    if not dry_run:
+        write_state(config.state_path, state)
     return RunResult(
         resolved_target_count=len(resolved_targets),
         fetched_paper_count=len(filtered_papers),
