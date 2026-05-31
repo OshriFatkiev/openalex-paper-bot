@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 TargetType = Literal["author", "institution"]
 EntityType = Literal["author", "institution", "field"]
+MatchReasonType = Literal["author", "institution", "query"]
 GlobalQueryField = Literal["search", "title", "abstract", "title_and_abstract"]
 WorkType = Literal["article", "preprint"]
 TopicMatchMode = Literal["primary", "any_topic"]
@@ -328,6 +329,19 @@ class ResolvedTopicField(BaseModel):
     resolved_name: str
 
 
+class MatchedTarget(BaseModel):
+    """A single match reason attached to a discovered paper.
+
+    Attributes:
+        label: Human-readable name shown in the digest.
+        reason: Why the paper matched (author, institution, or query).
+
+    """
+
+    label: str
+    reason: MatchReasonType
+
+
 class Paper(BaseModel):
     """Normalized paper metadata used by the bot.
 
@@ -353,7 +367,7 @@ class Paper(BaseModel):
     abstract: str | None = None
     authors_summary: str
     lead_author: str | None = None
-    matched_targets: list[str] = Field(default_factory=list)
+    matched_targets: list[MatchedTarget] = Field(default_factory=list)
     source_work_ids: list[str] = Field(default_factory=list)
 
     def searchable_text(self) -> str:
@@ -364,7 +378,9 @@ class Paper(BaseModel):
             matched targets.
 
         """
-        return " ".join([self.title, self.authors_summary, " ".join(self.matched_targets)]).casefold()
+        return " ".join(
+            [self.title, self.authors_summary, " ".join(mt.label for mt in self.matched_targets)]
+        ).casefold()
 
 
 class RuntimeConfig(BaseModel):

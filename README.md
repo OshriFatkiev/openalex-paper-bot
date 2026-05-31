@@ -230,6 +230,7 @@ Notes:
 - `github_models` calls GitHub Models using `summaries.model` and limits the rendered summary with `summaries.max_chars`.
 - For local GitHub Models summaries, set `GITHUB_MODELS_TOKEN` in `.env`. In GitHub Actions, the workflow uses the automatic `GITHUB_TOKEN` with `models: read` permission.
 - When too many papers match, the digest is split across up to a few Telegram messages and ends with a clear `... and N more papers not shown` note.
+- Each paper shows why it matched with a reason-specific emoji: 👤 for authors, 🏛 for institutions, and 🔍 for global queries.
 - Stable IDs are preferred for day-to-day runs.
 - `keywords.include` and `keywords.exclude` are still applied after retrieval to the combined result set.
 

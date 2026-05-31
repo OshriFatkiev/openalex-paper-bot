@@ -5,6 +5,7 @@ from pathlib import Path
 
 from openalex_paper_bot.models import (
     GlobalQueryField,
+    MatchedTarget,
     Paper,
     ResolvedTarget,
     ResolvedTopicField,
@@ -143,8 +144,11 @@ def test_fetch_papers_merges_target_and_global_query_results() -> None:
         "https://openalex.org/W1",
         "https://openalex.org/W2",
     ]
-    assert papers[0].matched_targets == ["Yann LeCun", "world model"]
-    assert papers[1].matched_targets == ["world model"]
+    assert papers[0].matched_targets == [
+        MatchedTarget(label="Yann LeCun", reason="author"),
+        MatchedTarget(label="world model", reason="query"),
+    ]
+    assert papers[1].matched_targets == [MatchedTarget(label="world model", reason="query")]
 
 
 def test_watchlist_global_query_defaults_and_labels() -> None:
@@ -255,7 +259,7 @@ def test_fetch_papers_keeps_global_query_match_after_ignored_target_match() -> N
     )
 
     assert [paper.work_id for paper in papers] == ["https://openalex.org/W1"]
-    assert papers[0].matched_targets == ["world model"]
+    assert papers[0].matched_targets == [MatchedTarget(label="world model", reason="query")]
 
 
 def test_collapse_equivalent_papers_prefers_doi_record_and_keeps_all_source_ids() -> None:
@@ -268,7 +272,7 @@ def test_collapse_equivalent_papers_prefers_doi_record_and_keeps_all_source_ids(
             abstract="This record has the only abstract.",
             authors_summary="Alice, Bob",
             lead_author="Alice",
-            matched_targets=["Meta"],
+            matched_targets=[MatchedTarget(label="Meta", reason="institution")],
             source_work_ids=["https://openalex.org/W1"],
         ),
         Paper(
@@ -279,7 +283,7 @@ def test_collapse_equivalent_papers_prefers_doi_record_and_keeps_all_source_ids(
             landing_url="https://doi.org/10.1000/example",
             authors_summary="Alice, Bob",
             lead_author="Alice",
-            matched_targets=["Yann LeCun"],
+            matched_targets=[MatchedTarget(label="Yann LeCun", reason="author")],
             source_work_ids=["https://openalex.org/W2"],
         ),
     ]
@@ -289,7 +293,10 @@ def test_collapse_equivalent_papers_prefers_doi_record_and_keeps_all_source_ids(
     assert len(collapsed) == 1
     assert collapsed[0].work_id == "https://openalex.org/W2"
     assert collapsed[0].landing_url == "https://doi.org/10.1000/example"
-    assert collapsed[0].matched_targets == ["Yann LeCun", "Meta"]
+    assert collapsed[0].matched_targets == [
+        MatchedTarget(label="Yann LeCun", reason="author"),
+        MatchedTarget(label="Meta", reason="institution"),
+    ]
     assert collapsed[0].source_work_ids == [
         "https://openalex.org/W2",
         "https://openalex.org/W1",

@@ -20,6 +20,8 @@ from openalex_paper_bot.formatter import build_digest_messages
 from openalex_paper_bot.models import (
     EntityRef,
     GlobalQueryField,
+    MatchedTarget,
+    MatchReasonType,
     Paper,
     ResolvedTarget,
     ResolvedTopicField,
@@ -370,7 +372,7 @@ def fetch_papers(
                 ignore_author_name_terms=config.watchlist.ignore_author_name_terms,
             )
         )
-        _merge_papers(deduped, papers, label=target.name)
+        _merge_papers(deduped, papers, label=target.name, reason=target.type)
 
     for query in config.watchlist.global_queries:
         papers = client.fetch_recent_works_for_query(
@@ -380,7 +382,7 @@ def fetch_papers(
             work_types=config.watchlist.work_types,
             topic_filters=topic_filters,
         )
-        _merge_papers(deduped, papers, label=query.display_label())
+        _merge_papers(deduped, papers, label=query.display_label(), reason="query")
 
     papers = collapse_equivalent_papers(list(deduped.values()))
     papers.sort(key=lambda paper: paper.title.casefold())
@@ -388,22 +390,30 @@ def fetch_papers(
     return papers
 
 
-def _merge_papers(deduped: dict[str, Paper], papers: list[Paper], *, label: str) -> None:
+def _merge_papers(
+    deduped: dict[str, Paper],
+    papers: list[Paper],
+    *,
+    label: str,
+    reason: MatchReasonType,
+) -> None:
     """Merge a source's papers into the deduped result map.
 
     Args:
         deduped: Mapping of canonical work IDs to accumulated papers.
         papers: Papers returned by a discovery source.
         label: Matched target or query label to attach to each paper.
+        reason: Why the paper matched (author, institution, or query).
 
     """
+    match = MatchedTarget(label=label, reason=reason)
     for paper in papers:
         existing = deduped.get(paper.work_id)
         if existing is None:
-            deduped[paper.work_id] = paper.model_copy(update={"matched_targets": [label]})
+            deduped[paper.work_id] = paper.model_copy(update={"matched_targets": [match]})
             continue
-        if label not in existing.matched_targets:
-            existing.matched_targets.append(label)
+        if not any(mt.label == label for mt in existing.matched_targets):
+            existing.matched_targets.append(match)
 
 
 def collapse_equivalent_papers(papers: list[Paper]) -> list[Paper]:
@@ -480,7 +490,7 @@ def _merge_equivalent_paper_pair(left: Paper, right: Paper) -> Paper:
         key=_paper_preference_key,
         reverse=True,
     )
-    matched_targets = list(dict.fromkeys([*preferred.matched_targets, *other.matched_targets]))
+    matched_targets = list({mt.label: mt for mt in [*preferred.matched_targets, *other.matched_targets]}.values())
     source_work_ids = list(
         dict.fromkeys(
             [

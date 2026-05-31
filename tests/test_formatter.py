@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 
 from openalex_paper_bot.formatter import build_digest, build_digest_messages
-from openalex_paper_bot.models import Paper
+from openalex_paper_bot.models import MatchedTarget, Paper
 
 
 def test_build_digest_flat_list_with_match_lines() -> None:
@@ -14,7 +14,10 @@ def test_build_digest_flat_list_with_match_lines() -> None:
             publication_date=date(2026, 4, 3),
             landing_url="https://example.com/paper-1",
             authors_summary="Alice, Bob",
-            matched_targets=["Yann LeCun", "Meta"],
+            matched_targets=[
+                MatchedTarget(label="Yann LeCun", reason="author"),
+                MatchedTarget(label="Meta", reason="institution"),
+            ],
         ),
         Paper(
             work_id="https://openalex.org/W2",
@@ -22,7 +25,7 @@ def test_build_digest_flat_list_with_match_lines() -> None:
             publication_date=date(2026, 4, 2),
             landing_url="https://example.com/paper-2",
             authors_summary="Carol",
-            matched_targets=["Shirley Ho"],
+            matched_targets=[MatchedTarget(label="Shirley Ho", reason="author")],
         ),
     ]
 
@@ -30,8 +33,9 @@ def test_build_digest_flat_list_with_match_lines() -> None:
 
     assert digest.startswith("<b>📚 Paper radar - 2 new</b>")
     assert '<b><a href="https://example.com/paper-1">A useful paper</a></b>' in digest
-    assert "🏷 Yann LeCun, Meta" in digest
-    assert "🏷 Shirley Ho" in digest
+    assert "👤 <i>Yann LeCun</i>" in digest
+    assert "🏛 <i>Meta</i>" in digest
+    assert "👤 <i>Shirley Ho</i>" in digest
     # No section headers
     assert "\nYann LeCun\n" not in digest
     assert "\nShirley Ho\n" not in digest
@@ -44,12 +48,12 @@ def test_build_digest_single_match_always_shows_match_line() -> None:
         publication_date=date(2026, 4, 3),
         landing_url="https://example.com/paper",
         authors_summary="Alice",
-        matched_targets=["Google DeepMind"],
+        matched_targets=[MatchedTarget(label="Google DeepMind", reason="institution")],
     )
 
     digest = build_digest([paper])
 
-    assert "🏷 Google DeepMind" in digest
+    assert "🏛 <i>Google DeepMind</i>" in digest
 
 
 def test_build_digest_escapes_html_in_clickable_titles() -> None:
@@ -59,7 +63,10 @@ def test_build_digest_escapes_html_in_clickable_titles() -> None:
         publication_date=date(2026, 4, 3),
         landing_url='https://example.com/paper?x=1&y="2"',
         authors_summary="Alice, Bob",
-        matched_targets=["Meta & Labs", "Other <Team>"],
+        matched_targets=[
+            MatchedTarget(label="Meta & Labs", reason="institution"),
+            MatchedTarget(label="Other <Team>", reason="author"),
+        ],
     )
 
     digest = build_digest([paper])
@@ -69,7 +76,8 @@ def test_build_digest_escapes_html_in_clickable_titles() -> None:
         "A &lt;dangerous&gt; &quot;paper&quot; &amp; friends"
         "</a></b>"
     ) in digest
-    assert "🏷 Meta &amp; Labs, Other &lt;Team&gt;" in digest
+    assert "🏛 <i>Meta &amp; Labs</i>" in digest
+    assert "👤 <i>Other &lt;Team&gt;</i>" in digest
 
 
 def test_build_digest_renders_escaped_summary_after_title() -> None:
@@ -79,7 +87,7 @@ def test_build_digest_renders_escaped_summary_after_title() -> None:
         publication_date=date(2026, 4, 3),
         landing_url="https://example.com/paper",
         authors_summary="Alice, Bob",
-        matched_targets=["Meta"],
+        matched_targets=[MatchedTarget(label="Meta", reason="institution")],
     )
 
     digest = build_digest(
@@ -88,11 +96,11 @@ def test_build_digest_renders_escaped_summary_after_title() -> None:
     )
 
     assert '<b><a href="https://example.com/paper">A useful paper</a></b>' in digest
-    assert "🏷 Meta" in digest
+    assert "🏛 <i>Meta</i>" in digest
     assert "<blockquote>💡 Uses &lt;agents&gt; &amp; retrieval.</blockquote>" in digest
     assert "💡 Uses &lt;agents&gt; &amp; retrieval." in digest
     assert "💡 TL;DR" not in digest
-    assert digest.index("🏷 Meta") < digest.index("💡 Uses")
+    assert digest.index("🏛 <i>Meta</i>") < digest.index("💡 Uses")
 
 
 def test_build_digest_empty_message() -> None:
@@ -107,7 +115,7 @@ def test_build_digest_reports_omitted_papers_when_truncated() -> None:
             publication_date=date(2026, 4, 3),
             landing_url=f"https://example.com/paper-{index}",
             authors_summary="Alice, Bob, Carol",
-            matched_targets=["Meta"],
+            matched_targets=[MatchedTarget(label="Meta", reason="institution")],
         )
         for index in range(1, 8)
     ]
@@ -131,7 +139,7 @@ def test_build_digest_marks_continued_messages() -> None:
             publication_date=date(2026, 4, 3),
             landing_url=f"https://example.com/paper-{index}",
             authors_summary="Alice, Bob, Carol",
-            matched_targets=["Meta"],
+            matched_targets=[MatchedTarget(label="Meta", reason="institution")],
         )
         for index in range(1, 5)
     ]
@@ -145,3 +153,18 @@ def test_build_digest_marks_continued_messages() -> None:
     assert len(messages) > 1
     assert messages[0].startswith("<b>📚 Paper radar - 4 new</b>")
     assert messages[1].startswith("<b>📚 Paper radar - 4 new (continued)</b>")
+
+
+def test_build_digest_renders_query_match_with_search_emoji() -> None:
+    paper = Paper(
+        work_id="https://openalex.org/W1",
+        title="A query-matched paper",
+        publication_date=date(2026, 4, 3),
+        landing_url="https://example.com/paper",
+        authors_summary="Alice",
+        matched_targets=[MatchedTarget(label="world model", reason="query")],
+    )
+
+    digest = build_digest([paper])
+
+    assert "🔍 <i>world model</i>" in digest

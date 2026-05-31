@@ -10,11 +10,13 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from html import escape
 
-from openalex_paper_bot.models import Paper
+from openalex_paper_bot.models import MatchedTarget, Paper
 
 MAX_MESSAGE_LENGTH = 4096
 DEFAULT_MAX_MESSAGES = 3
 LAST_MESSAGE_FOOTER_RESERVE = 160
+
+REASON_EMOJI = {"author": "👤", "institution": "🏛", "query": "🔍"}
 
 
 def build_digest(
@@ -115,6 +117,20 @@ def build_digest_messages(
     return messages
 
 
+def _format_matched_target(target: MatchedTarget) -> str:
+    """Format a single matched target with its reason-specific emoji.
+
+    Args:
+        target: The matched target to format.
+
+    Returns:
+        An HTML-formatted string with emoji and italic label.
+
+    """
+    emoji = REASON_EMOJI.get(target.reason, "🏷")
+    return f"{emoji} <i>{escape(target.label)}</i>"
+
+
 def _paper_block(paper: Paper, *, summary: str | None = None) -> list[str]:
     """Render the lines for a single paper within a digest.
 
@@ -130,8 +146,8 @@ def _paper_block(paper: Paper, *, summary: str | None = None) -> list[str]:
         f'<b><a href="{escape(paper.landing_url, quote=True)}">{escape(_truncate(paper.title, 180))}</a></b>',
     ]
     if paper.matched_targets:
-        matches = ", ".join(escape(target) for target in paper.matched_targets)
-        lines.append(f"🏷 {matches}")
+        matches = ", ".join(_format_matched_target(mt) for mt in paper.matched_targets)
+        lines.append(matches)
     if summary:
         lines.append(f"<blockquote>💡 {escape(_truncate(summary, 260))}</blockquote>")
     # lines.extend(
