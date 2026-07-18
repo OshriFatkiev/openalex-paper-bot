@@ -19,7 +19,7 @@ MatchReasonType = Literal["author", "institution", "query"]
 GlobalQueryField = Literal["search", "title", "abstract", "title_and_abstract"]
 WorkType = Literal["article", "preprint"]
 TopicMatchMode = Literal["primary", "any_topic"]
-SummaryProvider = Literal["fake", "github_models"]
+SummaryProvider = Literal["fake", "ollama"]
 
 
 class WatchTarget(BaseModel):
@@ -105,14 +105,14 @@ class SummaryOptions(BaseModel):
     Attributes:
         enabled: Whether to generate per-paper summaries before formatting.
         provider: Summary provider implementation to use.
-        model: GitHub Models model ID to use when provider is ``github_models``.
+        model: Ollama model ID to use when provider is ``ollama``.
         max_chars: Maximum summary length to render.
 
     """
 
     enabled: bool = False
     provider: SummaryProvider = "fake"
-    model: str = "openai/gpt-4.1-mini"
+    model: str = "gemma4:31b"
     max_chars: int = 220
 
     @field_validator("model")
@@ -394,7 +394,8 @@ class RuntimeConfig(BaseModel):
         openalex_api_key: OpenAlex API key from the environment.
         telegram_bot_token: Telegram bot token from the environment.
         telegram_chat_id: Telegram chat ID from the environment.
-        github_models_token: Optional token for GitHub Models summaries.
+        ollama_api_key: Optional API key for Ollama Cloud summaries.
+        ollama_base_url: Ollama API base URL.
 
     """
 
@@ -405,7 +406,8 @@ class RuntimeConfig(BaseModel):
     openalex_api_key: str | None = None
     telegram_bot_token: str | None = None
     telegram_chat_id: str | None = None
-    github_models_token: str | None = None
+    ollama_api_key: str | None = None
+    ollama_base_url: str = "https://ollama.com/v1"
 
 
 class RunResult(BaseModel):

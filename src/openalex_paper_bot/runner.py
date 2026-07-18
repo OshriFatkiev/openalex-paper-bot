@@ -188,7 +188,8 @@ def run(
         summaries = build_paper_summaries(
             new_papers,
             config.watchlist.summaries,
-            github_models_token=config.github_models_token,
+            ollama_api_key=config.ollama_api_key,
+            ollama_base_url=config.ollama_base_url,
         )
         if summaries:
             logger.info("Generated %d summaries for %d papers", len(summaries), len(new_papers))

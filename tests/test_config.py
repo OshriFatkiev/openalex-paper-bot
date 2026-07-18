@@ -36,8 +36,8 @@ def test_load_watchlist_reads_summary_options(tmp_path: Path) -> None:
             "    name: Yann LeCun\n"
             "summaries:\n"
             "  enabled: true\n"
-            "  provider: github_models\n"
-            "  model: openai/gpt-4.1-mini\n"
+            "  provider: ollama\n"
+            "  model: gemma4:31b\n"
             "  max_chars: 180\n"
         ),
         encoding="utf-8",
@@ -46,8 +46,8 @@ def test_load_watchlist_reads_summary_options(tmp_path: Path) -> None:
     watchlist = load_watchlist(watchlist_path)
 
     assert watchlist.summaries.enabled is True
-    assert watchlist.summaries.provider == "github_models"
-    assert watchlist.summaries.model == "openai/gpt-4.1-mini"
+    assert watchlist.summaries.provider == "ollama"
+    assert watchlist.summaries.model == "gemma4:31b"
     assert watchlist.summaries.max_chars == 180
 
 
@@ -63,7 +63,7 @@ def test_load_watchlist_defaults_summary_max_chars_to_220(tmp_path: Path) -> Non
     assert watchlist.summaries.max_chars == 220
 
 
-def test_load_runtime_config_reads_github_models_token(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_load_runtime_config_reads_ollama_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     project_root = tmp_path / "project"
     project_root.mkdir()
     (project_root / "pyproject.toml").write_text("[project]\nname='x'\n", encoding="utf-8")
@@ -71,7 +71,8 @@ def test_load_runtime_config_reads_github_models_token(tmp_path: Path, monkeypat
         "targets:\n  - type: author\n    name: Yann LeCun\n",
         encoding="utf-8",
     )
-    monkeypatch.setenv("GITHUB_MODELS_TOKEN", "models-token")
+    monkeypatch.setenv("OLLAMA_API_KEY", "ollama-key")
+    monkeypatch.setenv("OLLAMA_BASE_URL", "https://ollama.com/v1")
 
     config = load_runtime_config(
         project_root=project_root,
@@ -79,4 +80,5 @@ def test_load_runtime_config_reads_github_models_token(tmp_path: Path, monkeypat
         require_telegram=False,
     )
 
-    assert config.github_models_token == "models-token"
+    assert config.ollama_api_key == "ollama-key"
+    assert config.ollama_base_url == "https://ollama.com/v1"

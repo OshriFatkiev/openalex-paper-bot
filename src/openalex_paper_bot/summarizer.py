@@ -1,13 +1,14 @@
 """Generate optional per-paper summaries for digest rendering.
 
 The summarizer layer keeps provider-specific summary generation separate from
-digest formatting. It supports a deterministic fake provider for tests and a
-GitHub Models-backed provider for local and GitHub Actions runs.
+digest formatting. It supports a deterministic fake provider for tests and an
+Ollama-backed provider for local and GitHub Actions runs.
 """
 
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Sequence
 from typing import Any, Protocol, cast
 
@@ -15,8 +16,7 @@ import httpx
 
 from openalex_paper_bot.models import Paper, SummaryOptions, SummaryProvider
 
-GITHUB_MODELS_CHAT_COMPLETIONS_URL = "https://models.github.ai/inference/chat/completions"
-GITHUB_API_VERSION = "2026-03-10"
+DEFAULT_OLLAMA_BASE_URL = "https://ollama.com/v1"
 SUMMARY_SYSTEM_PROMPT = (
     "You write terse, neutral summaries of academic papers for a Telegram digest. "
     "Use only the provided abstract. Return one compact sentence. "
@@ -75,29 +75,32 @@ class FakePaperSummarizer:
         return summaries
 
 
-class GitHubModelsSummarizer:
-    """GitHub Models-backed paper summarizer."""
+class OllamaSummarizer:
+    """Ollama-backed paper summarizer."""
 
     def __init__(
         self,
         *,
-        token: str,
+        base_url: str = DEFAULT_OLLAMA_BASE_URL,
+        api_key: str | None = None,
         model: str,
         max_chars: int,
         timeout: float = 20.0,
         client: httpx.Client | None = None,
     ) -> None:
-        """Initialize the GitHub Models summarizer.
+        """Initialize the Ollama summarizer.
 
         Args:
-            token: GitHub token with Models access.
-            model: GitHub Models model identifier.
+            base_url: Ollama API base URL.
+            api_key: Optional API key for Ollama Cloud authentication.
+            model: Ollama model identifier.
             max_chars: Maximum number of summary characters to return.
             timeout: Request timeout in seconds.
             client: Optional HTTP client, primarily used by tests.
 
         """
-        self.token = token
+        self.base_url = base_url.rstrip("/")
+        self.api_key = api_key
         self.model = model
         self.max_chars = max_chars
         self._owns_client = client is None
@@ -128,7 +131,7 @@ class GitHubModelsSummarizer:
             self._client.close()
 
     def _summarize_paper(self, paper: Paper) -> str | None:
-        """Generate a single summary with the GitHub Models chat API.
+        """Generate a single summary with the Ollama chat API.
 
         Args:
             paper: Paper to summarize.
@@ -147,15 +150,14 @@ class GitHubModelsSummarizer:
                 {"role": "user", "content": _summary_user_prompt(paper, prompt_limit)},
             ],
         }
+        url = f"{self.base_url}/chat/completions"
+        headers: dict[str, str] = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
         try:
             response = self._client.post(
-                GITHUB_MODELS_CHAT_COMPLETIONS_URL,
-                headers={
-                    "Accept": "application/vnd.github+json",
-                    "Authorization": f"Bearer {self.token}",
-                    "Content-Type": "application/json",
-                    "X-GitHub-Api-Version": GITHUB_API_VERSION,
-                },
+                url,
+                headers=headers,
                 json=payload,
             )
             response.raise_for_status()
@@ -175,15 +177,17 @@ def build_summarizer(
     *,
     model: str,
     max_chars: int,
-    github_models_token: str | None = None,
+    ollama_api_key: str | None = None,
+    ollama_base_url: str = DEFAULT_OLLAMA_BASE_URL,
 ) -> PaperSummarizer | None:
     """Create a summarizer for a configured provider.
 
     Args:
         provider: Summary provider name from the watchlist config.
-        model: GitHub Models model identifier.
+        model: Ollama model identifier.
         max_chars: Maximum number of summary characters to render.
-        github_models_token: Optional GitHub token for the GitHub Models provider.
+        ollama_api_key: Optional API key for Ollama Cloud authentication.
+        ollama_base_url: Ollama API base URL.
 
     Returns:
         A configured summarizer, or ``None`` when provider credentials are missing.
@@ -194,11 +198,13 @@ def build_summarizer(
     """
     if provider == "fake":
         return FakePaperSummarizer(max_chars=max_chars)
-    if provider == "github_models":
-        if not github_models_token:
-            logger.warning("GitHub Models token not set; skipping summaries")
-            return None
-        return GitHubModelsSummarizer(token=github_models_token, model=model, max_chars=max_chars)
+    if provider == "ollama":
+        return OllamaSummarizer(
+            base_url=ollama_base_url,
+            api_key=ollama_api_key,
+            model=model,
+            max_chars=max_chars,
+        )
     raise ValueError(f"Unsupported summary provider: {provider}")
 
 
@@ -206,14 +212,16 @@ def build_paper_summaries(
     papers: Sequence[Paper],
     options: SummaryOptions,
     *,
-    github_models_token: str | None = None,
+    ollama_api_key: str | None = None,
+    ollama_base_url: str = DEFAULT_OLLAMA_BASE_URL,
 ) -> dict[str, str]:
     """Generate summaries for papers when summary generation is enabled.
 
     Args:
         papers: Candidate papers for the outgoing digest.
         options: Summary generation settings from the watchlist.
-        github_models_token: Optional GitHub token for the GitHub Models provider.
+        ollama_api_key: Optional API key for Ollama Cloud authentication.
+        ollama_base_url: Ollama API base URL.
 
     Returns:
         Summary text keyed by canonical OpenAlex work ID.
@@ -230,7 +238,8 @@ def build_paper_summaries(
         options.provider,
         model=options.model,
         max_chars=options.max_chars,
-        github_models_token=github_models_token,
+        ollama_api_key=ollama_api_key,
+        ollama_base_url=ollama_base_url,
     )
     if summarizer is None:
         return {}
@@ -321,16 +330,6 @@ def _summary_user_prompt(paper: Paper, max_chars: int) -> str:
         The user prompt for a single paper.
 
     """
-    # Previous prompt kept temporarily while we compare summary quality:
-    # f"Write a TL;DR of at most {max_chars} characters for this paper. "
-    # "Aim for 8-12 words and do not use the full limit if fewer words are enough.\n\n"
-    # "Write a 1-sentence summary focused on the key contribution. "
-    # f"Keep it under {max_chars} characters. Use only the title and abstract. "
-    # "Do not start with 'This paper' or 'The paper'.\n\n"
-    # "Write a compact 8-10 word summary focused on the key contribution. "
-    # "Prefer a phrase over a full sentence. "
-    # f"Keep it under {max_chars} characters. Use only the title and abstract. "
-    # "Do not start with 'This paper' or 'The paper'.\n\n"
     return (
         "Write one compact sentence focused on the paper's key contribution. "
         "Use at most 14 words. "
@@ -339,11 +338,24 @@ def _summary_user_prompt(paper: Paper, max_chars: int) -> str:
     )
 
 
+def _strip_think_blocks(text: str) -> str:
+    """Remove ``<think>...</think>`` blocks that some models emit.
+
+    Args:
+        text: Raw model response text.
+
+    Returns:
+        The text with any think blocks removed.
+
+    """
+    return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+
+
 def _extract_chat_completion_content(response_data: dict[str, Any]) -> str | None:
     """Extract assistant text from a chat completions response.
 
     Args:
-        response_data: Decoded GitHub Models chat completions response.
+        response_data: Decoded chat completions response.
 
     Returns:
         The first assistant message content, or ``None`` when unavailable.
@@ -375,7 +387,8 @@ def _clean_summary(summary: str | None, max_chars: int) -> str | None:
     """
     if not summary:
         return None
-    normalized = " ".join(summary.strip().strip('"').split())
+    normalized = _strip_think_blocks(summary)
+    normalized = " ".join(normalized.strip('"').split())
     if not normalized:
         return None
     prefixes = ("TL;DR:", "Summary:")
