@@ -132,7 +132,8 @@ def load_runtime_config(
     openalex_api_key = os.getenv("OPENALEX_API_KEY")
     telegram_bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     telegram_chat_id = os.getenv("TELEGRAM_CHAT_ID")
-    github_models_token = os.getenv("GITHUB_MODELS_TOKEN") or os.getenv("GITHUB_TOKEN")
+    ollama_api_key = os.getenv("OLLAMA_API_KEY")
+    ollama_base_url = os.getenv("OLLAMA_BASE_URL", "https://ollama.com/v1")
 
     missing: list[str] = []
     if require_openalex and not openalex_api_key:
@@ -155,5 +156,6 @@ def load_runtime_config(
         openalex_api_key=openalex_api_key,
         telegram_bot_token=telegram_bot_token,
         telegram_chat_id=telegram_chat_id,
-        github_models_token=github_models_token,
+        ollama_api_key=ollama_api_key,
+        ollama_base_url=ollama_base_url,
     )

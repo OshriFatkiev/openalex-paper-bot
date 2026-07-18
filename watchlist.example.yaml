@@ -38,8 +38,8 @@ keywords:
 
 summaries:
   enabled: false
-  provider: fake
-  model: openai/gpt-4.1-mini
+  provider: ollama # fake or ollama
+  model: gemma4:31b
   max_chars: 220
 
 telegram:
